@@ -1,0 +1,15 @@
+{
+  "name": "nadeshiko-desktop-pet",
+  "private": true,
+  "description": "撫子桌寵：安裝、啟動、連動 Claude Code 的捷徑指令",
+  "scripts": {
+    "setup": "npm --prefix app install",
+    "start": "npm --prefix app start",
+    "panel": "npm --prefix app run panel",
+    "hooks:install": "node tools/install-claude.js",
+    "hooks:dry-run": "node tools/install-claude.js --dry-run",
+    "hooks:uninstall": "node tools/install-claude.js --uninstall",
+    "sim": "node tools/simulate.js",
+    "test": "node --test \"test/*.test.js\""
+  }
+}

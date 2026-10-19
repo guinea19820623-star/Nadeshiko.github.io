@@ -1,0 +1,15 @@
+{
+  "name": "nadeshiko-pet",
+  "productName": "撫子桌寵",
+  "version": "0.1.1",
+  "description": "撫子的桌面寵物，跟 Claude Code 的工作狀態與用量連動",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "panel": "electron . --panel"
+  },
+  "devDependencies": {
+    "electron": "44.5.1"
+  }
+}

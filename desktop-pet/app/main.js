@@ -1,0 +1,366 @@
+'use strict';
+// 撫子桌寵：Electron 主程序
+// 負責：透明視窗、點擊穿透切換、拖曳、右鍵選單、設定保存、輪詢 Claude 狀態檔。
+const { app, BrowserWindow, ipcMain, Menu, Tray, screen, shell, nativeImage } = require('electron');
+const fs = require('fs');
+const path = require('path');
+const bridge = require('./lib/bridge');
+const { layout } = require('./lib/statecore');
+
+const BUBBLE_H = layout(250).bubbleH; // 視窗上方留給頭上小字的高度
+const SIZE_PRESETS = [
+  ['迷你', 140], ['小', 190], ['中', 250], ['大', 330], ['特大', 440],
+];
+const SIZE_MIN = 100;
+const SIZE_MAX = 640;
+
+const DEFAULT_SETTINGS = {
+  size: 250,
+  x: null,
+  y: null,
+  walk: true,
+  fly: true,
+  random: true,
+  bubble: true,
+  staminaAlways: false,
+  alwaysOnTop: true,
+  tiredAt: 85,
+  faintAt: 100,
+  napAt: 100,
+};
+
+let settings = { ...DEFAULT_SETTINGS };
+let pet = null;
+let panel = null;
+let tray = null;
+let forced = null;      // 測試用：強制顯示的狀態
+let dragTimer = null;
+let lastSnapshotJSON = '';
+let saveTimer = null;
+
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+
+function loadSettings() {
+  const s = bridge.readJSON(settingsFile());
+  if (s) settings = { ...DEFAULT_SETTINGS, ...s };
+  settings.size = clampSize(settings.size);
+}
+
+function saveSettingsSoon() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { bridge.writeJSON(settingsFile(), settings); } catch (e) { console.error(e); }
+  }, 400);
+}
+
+function clampSize(v) {
+  return Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round(Number(v) || DEFAULT_SETTINGS.size)));
+}
+
+function winSize(size = settings.size) {
+  const l = layout(size);
+  return { width: l.width, height: l.height };
+}
+
+// 一律帶著固定寬高設定位置：Windows 在 125%/150% 縮放下，
+// 對不可縮放的透明視窗反覆 setPosition 會讓視窗尺寸漂移，泡泡就跟角色對不上
+function placePet(x, y) {
+  if (!pet) return;
+  const { width, height } = winSize();
+  pet.setBounds({ x: Math.round(x), y: Math.round(y), width, height });
+}
+
+function displayFor(bounds) {
+  return screen.getDisplayMatching(bounds);
+}
+
+function createPet() {
+  const { width, height } = winSize();
+  const primary = screen.getPrimaryDisplay().workArea;
+  let x = settings.x;
+  let y = settings.y;
+  // 記住的位置不在任何螢幕內（例如拔掉外接螢幕）就回到主螢幕右下
+  const visible = x != null && screen.getAllDisplays().some((d) => {
+    const w = d.workArea;
+    return x + width / 2 >= w.x && x + width / 2 <= w.x + w.width && y + height / 2 >= w.y && y <= w.y + w.height;
+  });
+  if (!visible) {
+    x = primary.x + primary.width - width - 40;
+    y = primary.y + primary.height - height;
+  }
+
+  pet = new BrowserWindow({
+    x, y, width, height,
+    transparent: true,
+    frame: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    focusable: false,
+    alwaysOnTop: settings.alwaysOnTop,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+    },
+  });
+  if (settings.alwaysOnTop) pet.setAlwaysOnTop(true, 'floating');
+  pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
+  pet.setIgnoreMouseEvents(true, { forward: true });
+  pet.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  pet.on('closed', () => { pet = null; app.quit(); });
+}
+
+function send(channel, payload) {
+  if (pet && !pet.isDestroyed()) pet.webContents.send(channel, payload);
+}
+
+function broadcastSettings() {
+  send('pet:settings', settings);
+  if (panel && !panel.isDestroyed()) panel.webContents.send('panel:settings', settings);
+  rebuildTray();
+}
+
+function setSize(size) {
+  size = clampSize(size);
+  if (!pet) return;
+  const b = pet.getBounds();
+  const { width, height } = winSize(size);
+  // 以腳底中心為基準縮放，人不會跳走
+  const cx = b.x + b.width / 2;
+  const bottom = b.y + b.height;
+  pet.setBounds({ x: Math.round(cx - width / 2), y: Math.round(bottom - height), width, height });
+  settings.size = size;
+  saveSettingsSoon();
+  broadcastSettings();
+}
+
+function updateSetting(key, value) {
+  settings[key] = value;
+  if (key === 'alwaysOnTop' && pet) pet.setAlwaysOnTop(!!value, 'floating');
+  if (key === 'size') return setSize(value);
+  saveSettingsSoon();
+  broadcastSettings();
+}
+
+// ---------- Claude 狀態檔輪詢 ----------
+function pollSnapshot() {
+  const snap = bridge.readSnapshot();
+  const json = JSON.stringify(snap);
+  if (json !== lastSnapshotJSON) {
+    lastSnapshotJSON = json;
+    send('pet:snapshot', snap);
+    if (panel && !panel.isDestroyed()) panel.webContents.send('panel:snapshot', snap);
+  }
+}
+
+// ---------- 選單 ----------
+const TEST_STATES = [
+  ['free', '精神飽滿（隨機行為）'],
+  ['thinking', '思考中'],
+  ['working', '工作中'],
+  ['waiting', '等你確認'],
+  ['done', '完成'],
+  ['hello', '打招呼'],
+  ['tired', '疲憊（用量 85%+）'],
+  ['exhausted', '5 小時額度用完（睡覺）'],
+  ['faint', '暈倒（週上限）'],
+];
+const ACTIONS = [
+  ['walk', '走一走'], ['fly', '飛一圈'], ['yawn', '打哈欠'], ['stretch', '伸懶腰'],
+  ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '睡午覺'],
+];
+
+function menuTemplate() {
+  const sizeItems = SIZE_PRESETS.map(([label, v]) => ({
+    label: `${label}（${v}px）`, type: 'radio', checked: settings.size === v, click: () => setSize(v),
+  }));
+  sizeItems.push({ type: 'separator' },
+    { label: '放大一點', accelerator: 'CommandOrControl+Plus', click: () => setSize(settings.size * 1.1) },
+    { label: '縮小一點', accelerator: 'CommandOrControl+-', click: () => setSize(settings.size / 1.1) },
+    { label: '自訂…（控制面板）', click: openPanel });
+  return [
+    { label: `撫子 · ${settings.size}px`, enabled: false },
+    { type: 'separator' },
+    { label: '尺寸', submenu: sizeItems },
+    { label: '動作', submenu: ACTIONS.map(([k, l]) => ({ label: l, click: () => send('pet:action', k) })) },
+    {
+      label: '測試狀態',
+      submenu: [
+        { label: '自動（跟 Claude 連動）', type: 'radio', checked: forced == null, click: () => setForced(null) },
+        { type: 'separator' },
+        ...TEST_STATES.map(([k, l]) => ({ label: l, type: 'radio', checked: forced === k, click: () => setForced(k) })),
+      ],
+    },
+    { type: 'separator' },
+    { label: '隨機動作', type: 'checkbox', checked: settings.random, click: (i) => updateSetting('random', i.checked) },
+    { label: '在螢幕下緣走動', type: 'checkbox', checked: settings.walk, click: (i) => updateSetting('walk', i.checked) },
+    { label: '偶爾飛起來', type: 'checkbox', checked: settings.fly, click: (i) => updateSetting('fly', i.checked) },
+    { label: '頭上小字', type: 'checkbox', checked: settings.bubble, click: (i) => updateSetting('bubble', i.checked) },
+    { label: '體力條常駐', type: 'checkbox', checked: settings.staminaAlways, click: (i) => updateSetting('staminaAlways', i.checked) },
+    { label: '保持在最上層', type: 'checkbox', checked: settings.alwaysOnTop, click: (i) => updateSetting('alwaysOnTop', i.checked) },
+    {
+      label: '開機自動啟動', type: 'checkbox',
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }),
+    },
+    { type: 'separator' },
+    { label: '控制面板與模擬器…', click: openPanel },
+    { label: '回到螢幕右下角', click: resetPosition },
+    { label: '打開狀態資料夾', click: () => { fs.mkdirSync(bridge.stateDir(), { recursive: true }); shell.openPath(bridge.stateDir()); } },
+    { type: 'separator' },
+    { label: '結束', click: () => app.quit() },
+  ];
+}
+
+function popupMenu() {
+  Menu.buildFromTemplate(menuTemplate()).popup({ window: pet });
+}
+
+function rebuildTray() {
+  if (tray) tray.setContextMenu(Menu.buildFromTemplate(menuTemplate()));
+}
+
+function setForced(k) {
+  forced = k;
+  send('pet:force', k);
+  if (panel && !panel.isDestroyed()) panel.webContents.send('panel:force', k);
+  rebuildTray();
+}
+
+function resetPosition() {
+  if (!pet) return;
+  const wa = screen.getPrimaryDisplay().workArea;
+  const b = pet.getBounds();
+  placePet(wa.x + wa.width - b.width - 40, wa.y + wa.height - b.height);
+  send('pet:action', 'land');
+}
+
+function openPanel() {
+  if (panel && !panel.isDestroyed()) { panel.show(); panel.focus(); return; }
+  panel = new BrowserWindow({
+    width: 420, height: 720, title: '撫子 控制面板', autoHideMenuBar: true,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  panel.loadFile(path.join(__dirname, 'renderer', 'panel.html'));
+  panel.on('closed', () => { panel = null; });
+}
+
+// ---------- IPC ----------
+function setupIPC() {
+  ipcMain.handle('pet:init', () => ({
+    settings,
+    forced,
+    bubbleH: BUBBLE_H,
+    manifest: bridge.readJSON(path.join(__dirname, 'sprites', 'manifest.json')),
+    snapshot: bridge.readSnapshot(),
+    stateDir: bridge.stateDir(),
+  }));
+
+  ipcMain.on('pet:set-ignore', (_e, ignore) => {
+    if (pet) pet.setIgnoreMouseEvents(!!ignore, { forward: true });
+  });
+
+  ipcMain.handle('pet:geom', () => {
+    if (!pet) return null;
+    const b = pet.getBounds();
+    return { bounds: b, workArea: displayFor(b).workArea, cursor: screen.getCursorScreenPoint() };
+  });
+
+  ipcMain.on('pet:move', (_e, x, y) => {
+    if (!pet) return;
+    placePet(x, y);
+    settings.x = Math.round(x);
+    settings.y = Math.round(y);
+    saveSettingsSoon();
+  });
+
+  // 拖曳在主程序跟游標，滑鼠甩出視窗也不會掉
+  ipcMain.on('pet:drag-start', (_e, gx, gy) => {
+    if (!pet) return;
+    clearInterval(dragTimer);
+    let last = screen.getCursorScreenPoint();
+    let lastT = Date.now();
+    dragTimer = setInterval(() => {
+      if (!pet) return;
+      const c = screen.getCursorScreenPoint();
+      const t = Date.now();
+      const dt = Math.max(1, t - lastT);
+      placePet(c.x - gx, c.y - gy);
+      send('pet:drag-move', { vx: ((c.x - last.x) / dt) * 16, vy: ((c.y - last.y) / dt) * 16 });
+      last = c; lastT = t;
+    }, 16);
+  });
+
+  ipcMain.on('pet:drag-end', () => {
+    clearInterval(dragTimer);
+    dragTimer = null;
+    if (pet) {
+      const b = pet.getBounds();
+      settings.x = b.x; settings.y = b.y;
+      saveSettingsSoon();
+    }
+  });
+
+  ipcMain.on('pet:menu', popupMenu);
+  ipcMain.on('pet:resize-step', (_e, dir) => setSize(settings.size * (dir > 0 ? 1.08 : 1 / 1.08)));
+
+  // 控制面板
+  ipcMain.handle('panel:init', () => ({ settings, forced, snapshot: bridge.readSnapshot(), stateDir: bridge.stateDir(), sizeMin: SIZE_MIN, sizeMax: SIZE_MAX }));
+  ipcMain.on('panel:set', (_e, key, value) => updateSetting(key, value));
+  ipcMain.on('panel:force', (_e, k) => setForced(k || null));
+  ipcMain.on('panel:action', (_e, k) => send('pet:action', k));
+  // 模擬器：走跟真正 hooks 一樣的寫檔路徑
+  ipcMain.on('sim:hook', (_e, input) => { bridge.applyHookEvent({ session_id: 'simulator', cwd: 'simulator', ...input }); pollSnapshot(); });
+  ipcMain.on('sim:usage', (_e, five, week) => {
+    const now = Math.floor(Date.now() / 1000);
+    bridge.applyStatusline({
+      rate_limits: {
+        five_hour: { used_percentage: Number(five), resets_at: now + 2 * 3600 },
+        seven_day: { used_percentage: Number(week), resets_at: now + 3 * 86400 },
+      },
+    });
+    pollSnapshot();
+  });
+  ipcMain.on('sim:clear', () => {
+    const d = bridge.stateDir();
+    for (const f of ['usage.json', 'limit.json', path.join('sessions', 'simulator.json')]) {
+      try { fs.unlinkSync(path.join(d, f)); } catch (_) {}
+    }
+    pollSnapshot();
+  });
+}
+
+function makeTray() {
+  try {
+    const icon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray.png'));
+    tray = new Tray(icon);
+    tray.setToolTip('撫子');
+    rebuildTray();
+    tray.on('click', () => send('pet:action', 'wave'));
+  } catch (e) {
+    console.error('tray', e);
+  }
+}
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => send('pet:action', 'wave'));
+  app.whenReady().then(() => {
+    loadSettings();
+    bridge.pruneSessions();
+    setupIPC();
+    createPet();
+    makeTray();
+    setInterval(pollSnapshot, 600);
+    if (process.argv.includes('--panel')) openPanel();
+  });
+  app.on('window-all-closed', () => app.quit());
+}

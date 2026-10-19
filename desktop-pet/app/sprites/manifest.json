@@ -1,0 +1,342 @@
+{
+ "canvas": 660,
+ "ground": 648,
+ "sprites": {
+  "idle": {
+   "file": "idle.png",
+   "source": "Qwen_image_2.1_00027.png",
+   "bbox": [
+    129,
+    35,
+    535,
+    649
+   ],
+   "head": [
+    330,
+    35
+   ]
+  },
+  "blink": {
+   "file": "blink.png",
+   "source": "Qwen_image_2.1_00028.png",
+   "bbox": [
+    129,
+    34,
+    536,
+    649
+   ],
+   "head": [
+    330,
+    34
+   ]
+  },
+  "happy": {
+   "file": "happy.png",
+   "source": "Qwen_image_2.1_00028.png",
+   "bbox": [
+    129,
+    34,
+    536,
+    649
+   ],
+   "head": [
+    330,
+    34
+   ]
+  },
+  "pat": {
+   "file": "pat.png",
+   "source": "Qwen_image_2.1_00030.png",
+   "bbox": [
+    127,
+    34,
+    541,
+    646
+   ],
+   "head": [
+    330,
+    34
+   ]
+  },
+  "curious": {
+   "file": "curious.png",
+   "source": "Qwen_image_2.1_00026.png",
+   "bbox": [
+    127,
+    33,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    33
+   ]
+  },
+  "curious2": {
+   "file": "curious2.png",
+   "source": "Qwen_image_2.1_00036.png",
+   "bbox": [
+    127,
+    37,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    37
+   ]
+  },
+  "think": {
+   "file": "think.png",
+   "source": "Qwen_image_2.1_00031.png",
+   "bbox": [
+    127,
+    35,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    35
+   ]
+  },
+  "work": {
+   "file": "work.png",
+   "source": "Qwen_image_2.1_00032.png",
+   "bbox": [
+    127,
+    33,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    33
+   ]
+  },
+  "yawn": {
+   "file": "yawn.png",
+   "source": "Qwen_image_2.1_00033.png",
+   "bbox": [
+    127,
+    31,
+    544,
+    649
+   ],
+   "head": [
+    330,
+    31
+   ]
+  },
+  "wave": {
+   "file": "wave.png",
+   "source": "Qwen_image_2.1_00038.png",
+   "bbox": [
+    127,
+    34,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    34
+   ]
+  },
+  "sleep": {
+   "file": "sleep.png",
+   "source": "Qwen_image_2.1_00042.png",
+   "bbox": [
+    127,
+    34,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    34
+   ]
+  },
+  "tired": {
+   "file": "tired.png",
+   "source": "Qwen_image_2.1_00023.png",
+   "bbox": [
+    133,
+    34,
+    549,
+    647
+   ],
+   "head": [
+    330,
+    34
+   ]
+  },
+  "stretch": {
+   "file": "stretch.png",
+   "source": "Qwen_image_2.1_00035.png",
+   "bbox": [
+    140,
+    48,
+    537,
+    648
+   ],
+   "head": [
+    330,
+    48
+   ]
+  },
+  "cheer": {
+   "file": "cheer.png",
+   "source": "Qwen_image_2.1_00045.png",
+   "bbox": [
+    126,
+    119,
+    532,
+    648
+   ],
+   "head": [
+    330,
+    119
+   ]
+  },
+  "faint": {
+   "file": "faint.png",
+   "source": "Qwen_image_2.1_00024.png",
+   "bbox": [
+    29,
+    92,
+    632,
+    648
+   ],
+   "head": [
+    330,
+    92
+   ]
+  },
+  "drag": {
+   "file": "drag.png",
+   "source": "Qwen_image_2.1_00059.png",
+   "bbox": [
+    179,
+    21,
+    604,
+    647
+   ],
+   "head": [
+    330,
+    21
+   ]
+  },
+  "fly1": {
+   "file": "fly1.png",
+   "source": "Qwen_image_2.1_00054.png",
+   "bbox": [
+    64,
+    67,
+    596,
+    647
+   ],
+   "head": [
+    330,
+    67
+   ]
+  },
+  "fly2": {
+   "file": "fly2.png",
+   "source": "Qwen_image_2.1_00055.png",
+   "bbox": [
+    80,
+    51,
+    581,
+    647
+   ],
+   "head": [
+    330,
+    51
+   ]
+  },
+  "walk1": {
+   "file": "walk1.png",
+   "source": "Qwen_image_2.1_00016.png",
+   "bbox": [
+    81,
+    10,
+    432,
+    648
+   ],
+   "head": [
+    330,
+    10
+   ]
+  },
+  "walk2": {
+   "file": "walk2.png",
+   "source": "Qwen_image_2.1_00017.png",
+   "bbox": [
+    92,
+    29,
+    434,
+    647
+   ],
+   "head": [
+    330,
+    29
+   ]
+  },
+  "walk3": {
+   "file": "walk3.png",
+   "source": "Qwen_image_2.1_00018.png",
+   "bbox": [
+    62,
+    24,
+    466,
+    648
+   ],
+   "head": [
+    330,
+    24
+   ]
+  },
+  "walk4": {
+   "file": "walk4.png",
+   "source": "Qwen_image_2.1_00019.png",
+   "bbox": [
+    56,
+    27,
+    512,
+    647
+   ],
+   "head": [
+    330,
+    27
+   ]
+  },
+  "walk5": {
+   "file": "walk5.png",
+   "source": "9ec4f8ce-55ae-41de-89a6-1f7251bb80a7",
+   "bbox": [
+    17,
+    27,
+    529,
+    648
+   ],
+   "head": [
+    330,
+    27
+   ]
+  },
+  "pose": {
+   "file": "pose.png",
+   "source": "1793e431-d033-4131-b125-5722b41a6ba5",
+   "bbox": [
+    126,
+    34,
+    540,
+    648
+   ],
+   "head": [
+    330,
+    34
+   ]
+  }
+ }
+}

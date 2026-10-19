@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>撫子 控制面板</title>
+<style>
+  :root {
+    --bg: #fffaf4; --card: #ffffff; --ink: #4a3226; --muted: #8a6f60; --line: #f0dccb;
+    --accent: #f08a3c; --accent-ink: #fff; --chip: #fdeedd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #221a16; --card: #2c221d; --ink: #f6e8dc; --muted: #c4a898; --line: #45362e; --accent: #f29a52; --chip: #3a2c24; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 14px; background: var(--bg); color: var(--ink);
+    font: 13px/1.5 "Microsoft JhengHei UI", "PingFang TC", "Noto Sans TC", system-ui, sans-serif; }
+  h1 { font-size: 16px; margin: 0 0 10px; }
+  h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .row label { flex: 1; }
+  input[type=range] { flex: 2; accent-color: var(--accent); }
+  output { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  button { border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 8px;
+    padding: 6px 8px; font: inherit; cursor: pointer; text-align: left; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.on { outline: 2px solid var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+  pre { background: var(--chip); border-radius: 8px; padding: 8px; font-size: 11px; max-height: 140px; overflow: auto; margin: 6px 0 0; white-space: pre-wrap; }
+  label.check { display: flex; gap: 6px; align-items: center; }
+</style>
+</head>
+<body>
+  <h1>撫子 控制面板</h1>
+
+  <section>
+    <h2>外觀</h2>
+    <div class="row"><label for="size">尺寸</label><input id="size" type="range" step="5"><output id="size-out"></output></div>
+    <p class="hint">也可以在撫子身上按住 Ctrl 滾動滑鼠滾輪縮放。</p>
+    <div class="grid" id="toggles"></div>
+  </section>
+
+  <section>
+    <h2>用量門檻</h2>
+    <div class="row"><label for="tiredAt">疲憊（5h 或 7d 用量 ≥）</label><input id="tiredAt" type="range" min="50" max="99"><output id="tiredAt-out"></output></div>
+    <div class="row"><label for="faintAt">暈倒（7d 用量 ≥）</label><input id="faintAt" type="range" min="80" max="100"><output id="faintAt-out"></output></div>
+    <div class="row"><label for="napAt">睡覺（5h 用量 ≥）</label><input id="napAt" type="range" min="80" max="100"><output id="napAt-out"></output></div>
+  </section>
+
+  <section>
+    <h2>測試狀態（直接切，不經過 Claude）</h2>
+    <div class="grid" id="force"></div>
+  </section>
+
+  <section>
+    <h2>模擬器（假裝 Claude Code 送事件，走跟真的 hooks 同一條路）</h2>
+    <div class="grid" id="sim"></div>
+    <div class="row"><label for="u5">5 小時用量</label><input id="u5" type="range" min="0" max="100" value="30"><output id="u5-out">30%</output></div>
+    <div class="row"><label for="u7">7 天用量</label><input id="u7" type="range" min="0" max="100" value="40"><output id="u7-out">40%</output></div>
+    <div class="grid">
+      <button class="primary" id="send-usage">送出用量</button>
+      <button id="clear">清除模擬資料</button>
+    </div>
+    <pre id="snap"></pre>
+    <p class="hint" id="dir"></p>
+  </section>
+
+  <section>
+    <h2>動作</h2>
+    <div class="grid" id="actions"></div>
+  </section>
+  <script src="panel.js"></script>
+</body>
+</html>

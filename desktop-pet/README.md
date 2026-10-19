@@ -1,0 +1,244 @@
+# 撫子桌寵 v0.1.1
+
+會在螢幕下緣走來走去、偶爾飛一圈、被摸頭會害羞的撫子。她跟 Claude Code 連動：你送出提示她就開始想，Claude 動手用工具她就抱著平板工作，回答完會歡呼；用量超過 85% 會累，5 小時額度用完會睡著，碰到週上限會暈倒。
+
+![各狀態截圖](docs/states.png)
+
+> 這張圖是在雲端容器裡用 Electron 實際跑出來的畫面截圖（透明背景疊在漸層上）。
+
+### 更新紀錄
+- **v0.1.1（2026-10-20）** 修正「角色移動後，頭上泡泡停在右下角不跟著走」。
+  - 泡泡改成每一格都重新對準她目前畫出來的頭頂（走路、飛行、被拎起、跳起來都跟著），下面多了指向頭的小尾巴。
+  - 靠近螢幕左右邊緣時，泡泡自動往內側移，小尾巴仍指著頭；太靠上面時往下讓。
+  - 視窗左右多留一段透明邊給泡泡用（透明處滑鼠照樣穿透）。
+  - 移動視窗一律帶固定寬高（`setBounds`），並定期檢查尺寸：Windows 在 125%／150% 縮放時，反覆移動透明視窗可能讓視窗大小漂移，這很可能就是泡泡跑掉的原因。
+  - 更新方式：關掉撫子，用新的 zip 覆蓋整個資料夾（`app/node_modules` 可以保留，不用重新下載 Electron），再雙擊 `start-windows.bat`。hooks 不用重裝。
+- **v0.1（2026-10-19）** 第一版。
+
+---
+
+## 1. 最少步驟（Windows 11）
+
+需要 **Node.js 20 以上，建議 22 LTS**（終端機打 `node -v` 確認；沒有就到 nodejs.org 裝 LTS 版）。
+
+1. 把整個 `desktop-pet` 資料夾放到你喜歡的位置，例如 `C:\nadeshiko-pet`。
+2. 雙擊 **`start-windows.bat`**。第一次會自動下載 Electron（約 100MB，要等一下），之後秒開。
+3. 撫子出現在右下角後，在她身上 **按右鍵** → 「測試狀態」或「控制面板與模擬器…」先玩一輪，確認畫面正常。
+4. 連動 Claude Code：在 `desktop-pet` 資料夾開終端機，執行
+   ```
+   node tools/install-claude.js --dry-run   ← 先看會改成什麼樣子（不寫檔）
+   node tools/install-claude.js             ← 真的安裝（會先備份 settings.json）
+   ```
+   然後重開 Claude Code。想移除就 `node tools/install-claude.js --uninstall`，會還原成原本的樣子。
+
+macOS 一樣，只是第 2 步改雙擊 `start-mac.command`（第一次可能要在「系統設定 → 隱私權與安全性」允許）。
+
+也可以用 npm 指令：`npm run setup`（裝 Electron）、`npm start`（啟動）、`npm run hooks:install`、`npm test`（跑邏輯測試）。
+
+## 2. 怎麼跟她互動
+
+| 動作 | 結果 |
+|---|---|
+| 左鍵點一下 | 開心地跳一下、冒愛心 |
+| 滑鼠在她頭上左右來回撫摸 | 摸頭撒嬌（臉紅雙手捧臉），停手就結束 |
+| 按住拖曳 | 像被拎起後頸一樣晃來晃去，放開會掉回地面；從很高的地方放手會暈一下 |
+| Ctrl + 滾輪（游標在她身上） | 放大縮小 |
+| 右鍵 | 選單：尺寸、動作、測試狀態、各種開關、控制面板、結束 |
+| 工作列的小圖示 | 跟右鍵選單一樣（她跑不見時用「回到螢幕右下角」） |
+
+她身上透明的地方（包含左右留給泡泡的空白）滑鼠會直接穿過去，不會擋到底下的視窗。**尺寸、位置、開關都會記住**，下次開還是一樣。
+
+### 尺寸
+- 右鍵 → 尺寸：迷你 140 / 小 190 / 中 250 / 大 330 / 特大 440，或「放大一點、縮小一點」
+- 控制面板的滑桿：100 到 640 像素任意調
+- 縮放時以腳底為基準，不會跳走
+
+## 3. 狀態怎麼決定
+
+優先序（高的蓋過低的）：
+
+**使用者互動**（拖曳、摸頭）＞ **暈倒** ＞ **睡覺（5h 用完）** ＞ **疲憊** ＞ **等你確認** ＞ **工作中** ＞ **思考** ＞ **完成** ＞ **隨機行為**
+
+| 桌寵狀態 | 觸發條件 | 用的圖 |
+|---|---|---|
+| 暈倒 | 7 天用量 ≥ 100%，或 Claude 回報撞到用量上限且週用量接近滿 | `faint` |
+| 睡覺 | 5 小時用量 ≥ 100%，或撞到上限但週用量還沒滿；頭上顯示幾點恢復 | `sleep` |
+| 疲憊 | 5 小時或 7 天任一 ≥ 85%（門檻可在控制面板調）；偶爾打哈欠 | `tired` / `yawn` |
+| 等你確認 | Claude 跳出權限詢問（`permission_prompt`） | `wave` 揮手 |
+| 工作中 | Claude 正在用工具（`PreToolUse` / `PostToolUse`），頭上顯示工具名 | `work` |
+| 思考 | 你剛送出提示（`UserPromptSubmit`） | `think` |
+| 完成 | 回答結束（`Stop`），歡呼 6 秒 | `cheer` |
+| 打招呼 | 開新工作階段（`SessionStart`） | `wave` |
+| 隨機行為 | 沒事的時候：待機呼吸眨眼、走動、飛一圈、張望、打哈欠、伸懶腰、揮手、歡呼、換姿勢；被冷落 12 分鐘以上會睡午覺 | 各種 |
+
+疲憊時如果 Claude 還在工作，頭上會寫「還在工作…體力剩 12%」，所以兩件事都看得到。滑鼠移到她身上會出現**體力條**（5h、週剩餘的百分比），疲憊以上會一直顯示；也可以在選單打開「體力條常駐」。
+
+同時開好幾個 Claude Code 視窗時，取最忙的那一個。思考或工作超過 10 分鐘沒有新事件（例如 Claude 當掉），會自動當作結束。
+
+## 4. 連動的原理（查證過官方文件）
+
+資料都放在 `~/.nadeshiko-pet/`（Windows 是 `C:\Users\你\.nadeshiko-pet\`），右鍵「打開狀態資料夾」可以直接看：
+
+```
+sessions/<工作階段>.json   hooks 寫：這個 Claude Code 視窗正在做什麼
+usage.json                狀態列腳本寫：5 小時 / 7 天用量與重置時間
+limit.json                hooks 寫：剛剛撞到用量上限
+```
+
+桌寵每 0.6 秒讀一次。桌寵沒開時 hooks 照樣寫檔，不影響 Claude。
+
+### 4.1 工作狀態：Claude Code hooks
+來源：<https://code.claude.com/docs/en/hooks>
+
+`install-claude.js` 會在 `~/.claude/settings.json` 的 `hooks` 裡，為這些事件加上 `node ".../hooks/pet-hook.js"`：
+`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PostToolUse`、`PostToolUseFailure`、`PermissionRequest`、`Notification`、`SubagentStart`、`PreCompact`、`Stop`、`StopFailure`、`SessionEnd`。
+
+- 每個 hook 都設 `"async": true`（官方欄位：在背景執行、不阻塞），腳本一律 exit 0、不輸出任何東西，**不會拖慢或擋住 Claude**。
+- `StopFailure` 的 `error` 是 `rate_limit` 時代表撞到用量上限；`Notification` 的 `quota_auto_resume_fired` 代表額度恢復後自動續跑。
+- 路徑一律寫成正斜線，因為 Windows 上 Claude Code 用 Git Bash 執行 hook，反斜線會被吃掉（官方文件有特別提醒）；沒有 Git Bash 時會改用 PowerShell，`node "C:/..."` 兩邊都能跑。
+- 你原本的 hooks 都會保留，安裝前會備份成 `settings.json.bak-時間`。
+
+### 4.2 用量：狀態列腳本收到的 `rate_limits`
+來源：<https://code.claude.com/docs/en/statusline>
+
+Claude Code 會把一包 JSON 從 stdin 傳給狀態列指令，其中：
+
+```json
+"rate_limits": {
+  "five_hour": { "used_percentage": 23.5, "resets_at": 1738425600 },
+  "seven_day": { "used_percentage": 41.2, "resets_at": 1738857600 }
+}
+```
+
+- `used_percentage` 是 0 到 100，`resets_at` 是 Unix 秒。
+- **只有 Pro / Max 訂閱才有**，而且要等工作階段第一次收到回應後才出現；兩個視窗可能各自缺席，過了 `resets_at` 也會被拿掉。腳本都有處理。
+- 狀態列在「新的助手訊息到達」等時機才重跑（官方寫有 300ms 防抖），所以用量是**用 Claude Code 時才更新**，平常不會自己變。
+- 安裝時如果你原本就有自己的狀態列，會被記在 `~/.nadeshiko-pet/statusline-chain.json`，撫子的腳本讀完用量後**照樣執行你原本的指令並顯示它的結果**，畫面不變。沒有的話會顯示 `撫子 │ 模型 │ ctx 12% │ 5h 24%（3h10m） │ 週 41%（2天後重置）`。
+
+### 4.3 Claude Desktop 呢？（誠實評估）
+
+- **Desktop 的「Code」分頁可以**：官方文件寫明 Desktop 與 CLI 共用 `~/.claude/settings.json`，hooks 兩邊都會觸發（<https://code.claude.com/docs/en/desktop> 的 Shared configuration 一節），所以思考、工作、完成、撞上限都會連動。
+- **Desktop 的一般聊天沒有辦法**：它沒有 hooks、沒有狀態列、也沒有公開的本機事件介面，我找不到正當的本機訊號可以知道「它正在想」或「它用了多少」。不去硬湊（例如讀它的內部快取或截圖辨識），因為很容易壞、也不該碰。
+- **用量是全帳號共用的**：5 小時與週額度是同一個方案在算，所以只要你偶爾用一下 Claude Code（終端機或 Desktop 的 Code 分頁），撫子就會拿到最新數字，包含你在 Desktop 聊天用掉的部分。
+- 替代方案：控制面板的「模擬器」可以手動拉用量滑桿；或在終端機 `node tools/simulate.js usage 90 60` 直接設定。
+
+## 5. 模擬器（驗收用，不需要 Claude）
+
+**控制面板**（右鍵 →「控制面板與模擬器…」）：
+- 「測試狀態」：直接切到任一狀態，選「自動」回到連動
+- 「模擬器」：按鈕送出假的 Claude 事件（開新工作階段、送出提示、呼叫工具、要求權限、回答結束、撞到上限、額度恢復、API 錯誤、結束），走的是**跟真正 hooks 完全一樣的寫檔路徑**，所以這裡正常，接上 Claude 就會正常
+- 兩條滑桿設定 5h / 7d 用量，按「送出用量」
+- 下方即時顯示狀態檔內容
+
+**命令列**：
+```
+node tools/simulate.js think          思考
+node tools/simulate.js work Edit      工作中（工具名可省略）
+node tools/simulate.js wait | done | hello | error
+node tools/simulate.js usage 90 40    5h 90%、週 40% → 疲憊
+node tools/simulate.js limit          撞到上限
+node tools/simulate.js clear          清掉模擬資料
+node tools/simulate.js demo           自動輪播全部狀態（約 1 分鐘）
+```
+
+## 6. 素材對照表
+
+原圖沒有被修改。`tools/prepare_sprites.py` 會把 alpha < 8 的像素清成 0（Qwen 圖約 40% 的像素是肉眼看不到的 alpha=1 紫色殘留）、把 1254 尺寸的圖縮到同一個角色比例、以頭部中心與腳底對齊到同一張畫布，輸出 660×660 的 PNG 到 `app/sprites/`。
+
+| 狀態鍵 | 原始檔 | 用途 |
+|---|---|---|
+| idle | Qwen_image_2.1_00027 | 待機（雙手交握微笑） |
+| blink / happy | Qwen_image_2.1_00028 | 眨眼（跟 00027 只差眼睛，完美對齊）、被點一下的開心 |
+| pat | Qwen_image_2.1_00030 | 摸頭撒嬌（臉紅捧臉） |
+| curious / curious2 | Qwen_image_2.1_00026 / 00036 | 張望、出錯時的疑惑 |
+| think | Qwen_image_2.1_00031 | 思考（泡泡） |
+| work | Qwen_image_2.1_00032 | 工作中（平板） |
+| yawn | Qwen_image_2.1_00033 | 打哈欠（也用在疲憊時） |
+| wave | Qwen_image_2.1_00038 | 揮手、打招呼、等你確認 |
+| sleep | Qwen_image_2.1_00042 | 睡覺（5h 用完、睡午覺） |
+| tired | Qwen_image_2.1_00023 | 疲憊（揉眼睛、頭髮翹） |
+| stretch | Qwen_image_2.1_00035 | 伸懶腰 |
+| cheer | Qwen_image_2.1_00045 | 完成、歡呼 |
+| faint | Qwen_image_2.1_00024 | 暈倒（週上限）、高處摔下暈一下 |
+| drag | Qwen_image_2.1_00059 | 被拎起、下落 |
+| fly1 / fly2 | Qwen_image_2.1_00054 / 00055 | 飛行（兩張交替） |
+| walk1–4 | Qwen_image_2.1_00016–00019 | 走路輪播 |
+| walk5 | uploads/hearth/9ec4f8ce…（1254px） | 大跨步（已處理，目前沒排進輪播，留著備用） |
+| pose | uploads/hearth/1793e431…（1254px，最初的角色圖） | 隨機換姿勢 |
+
+沒用到：`uploads/hearth/87024f76…` 和 00018 幾乎一模一樣（平均像素差 3.6），用 00018。
+
+以後加新圖：把檔名加進 `prepare_sprites.py` 的 `SPRITES`，執行
+`python tools/prepare_sprites.py --src <素材資料夾>`（需要 `pip install pillow numpy`）。
+
+## 7. 我自己決定、改了的地方
+
+- **5 小時額度用完 → 睡覺，週上限才暈倒**。原本只有「85% 疲憊、週上限暈倒」，但 5h 用完也會被擋，用「睡到幾點再戰」比較貼切，也跟暈倒區分開。門檻三個都能在控制面板調。
+- **體力條顯示「剩下多少」**而不是「用了多少」，頭上字也統一成「體力剩 12%」。
+- **拖曳一律像拎後頸**：不管抓哪裡，都換成被拎起的圖、以頭為軸擺盪，放手會掉回地面，從很高放手會暈 2 秒。
+- **眨眼**：00027 和 00028 只差眼睛，剛好拿來做待機眨眼（偶爾連眨兩下）。
+- **側身與飛行圖放大 6–20%**：這兩組孵出來臉比正面小，不放大的話切換時會覺得人縮水。
+- **走路順序**：沒有左右腳交替的素材，用「大步 → 收腳 → 抬後腳 → 跨出」四張輪播加上下彈跳，往左走時鏡像。
+- **頭上小字**：各狀態與動作有一句短台詞（「呼啊～」「哇！放我下來～」），不喜歡可以關。
+- **保留你原本的狀態列**：安裝程式偵測到就串接，不會蓋掉。
+- **被冷落 12 分鐘以上會睡午覺**，滑鼠或 Claude 有動靜就醒。
+- 加了工作列小圖示和「回到螢幕右下角」，她跑到別的螢幕或找不到時用。
+
+## 8. 還缺的素材與建議提示詞
+
+依重要性排序。**正面的圖請用 00027 當底圖做「圖片編輯」**（只改表情或手），這樣孵出來會跟現有的完美對齊，切換時身體不會抖（00028 就是這樣成功的）。
+
+共用角色描述（貼在每個提示詞前面）：
+```
+chibi anime girl, long wavy peach-blonde hair, large orange flower hair ornament on one side with dangling gold bead ornaments,
+amber eyes, white off-shoulder ruffled tiered dress with orange bow and gold beaded trim, barefoot,
+full body, soft cel shading, clean lineart, transparent background, no shadow on ground
+```
+
+1. **往左走的走路圖 4 張**（目前往左是鏡像，花飾會跑到另一邊）
+   `same character walking to the left, side view, [contact pose: legs apart, front heel down] / [passing pose: back foot lifted] ...` 各一張，跟現有 00016–00019 同一套姿勢的反方向。
+2. **真正換腳的走路圖 2 張**（讓走路更自然）
+   `side view walking to the right, LEFT leg forward stride` 與 `side view walking to the right, RIGHT leg forward stride`，兩張只差哪隻腳在前。
+3. **各表情的閉眼版**（讓思考、工作、疲憊也會眨眼）：以 00031、00032、00023 為底圖編輯 `keep everything identical, only close her eyes gently`。
+4. **工作中第二張**：以 00032 為底圖編輯 `same pose, looking up from the tablet at the viewer, small smile`，兩張交替就像邊打字邊抬頭。
+5. **被拎起第二張**：以 00059 為底圖編輯 `same pose, legs kicking, flustered expression, sweat drop`，拖曳時兩張交替。
+6. **出錯／困惑**：以 00027 為底圖編輯 `tilting head, question mark above head, confused expression, one finger on cheek`。
+7. **從暈倒爬起來**：`sitting up on the floor, rubbing head with one hand, dizzy swirl fading, embarrassed smile`。
+8. （進階）**坐在視窗邊緣**：`sitting with legs dangling, viewed from the front, hands on the edge`，之後可以做「坐在視窗頂端」。
+
+## 9. 驗證狀況
+
+在雲端容器（Linux + Xvfb）裡做到的：
+- `npm test`：14 項測試全過（狀態機優先序、門檻、過期與上限判斷、hook 腳本實際讀 stdin 寫檔、狀態列腳本、安裝與移除時原設定完整保留並能還原原本狀態列）
+- 用 Playwright 驅動 Electron 44 實際啟動：透明視窗、各狀態切換、走路會移動視窗、飛行、拖曳、摸頭偵測、控制面板改尺寸（以腳底為基準）、設定存檔、模擬器按鈕，畫面截圖就是上面那張
+
+**沒驗證到、要你在自己電腦上看的：**
+- Windows 上的點擊穿透手感（Linux 不支援 `forward` 參數，邏輯有寫但沒實測）、拖曳甩動的手感、工作列圖示
+- 真正接上 Claude Code 的 hooks 與狀態列（文件查證過、腳本有用模擬輸入測，但沒有真的 Claude Code 可以跑）
+- 高 DPI 縮放（125% / 150%）下的清晰度
+- macOS 只照官方行為寫，完全沒測
+
+遇到問題時：右鍵 →「打開狀態資料夾」看 JSON 有沒有在更新；hooks 可以在 Claude Code 裡打 `/hooks` 檢查；設定 `NADESHIKO_PET_DEBUG=1` 時 hook 錯誤會印到 stderr。
+
+## 10. 檔案結構
+
+```
+desktop-pet/
+├─ start-windows.bat / start-mac.command   雙擊啟動
+├─ package.json                            npm 捷徑指令
+├─ app/                                    Electron 桌寵本體
+│  ├─ main.js                              視窗、選單、拖曳、設定、讀狀態檔
+│  ├─ preload.js
+│  ├─ lib/bridge.js                        讀寫狀態檔（hooks 也用這支）
+│  ├─ lib/statecore.js                     狀態機（純函式，有測試）
+│  ├─ renderer/                            畫面、行為、控制面板
+│  ├─ sprites/                             處理好的立繪 + manifest.json
+│  └─ assets/                              圖示
+├─ hooks/pet-hook.js                       Claude Code hook
+├─ hooks/pet-statusline.js                 狀態列腳本（讀用量）
+├─ tools/install-claude.js                 安裝／移除 hooks 與狀態列
+├─ tools/simulate.js                       命令列模擬器
+├─ tools/prepare_sprites.py                素材處理
+├─ test/                                   node --test
+└─ docs/states.png                         各狀態截圖
+```
