@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 
 const TOGGLES = [
   ['random', '隨機動作'], ['walk', '在螢幕下緣走動'], ['fly', '偶爾飛起來'],
-  ['bubble', '頭上小字'], ['staminaAlways', '體力條常駐'], ['alwaysOnTop', '保持在最上層'],
+  ['voice', '語音'], ['bubble', '頭上小字'], ['staminaAlways', '體力條常駐'], ['alwaysOnTop', '保持在最上層'],
 ];
 const FORCE = [
   [null, '自動（跟 Claude 連動）'], ['free', '精神飽滿（隨機）'], ['thinking', '思考中'], ['working', '工作中'],
@@ -43,6 +43,8 @@ function bindRange(id, key, fmt) {
 function render() {
   $('size').value = settings.size;
   $('size-out').textContent = `${settings.size}px`;
+  $('volume').value = settings.volume;
+  $('volume-out').textContent = `${settings.volume}%`;
   for (const k of ['tiredAt', 'faintAt', 'napAt']) {
     $(k).value = settings[k];
     $(`${k}-out`).textContent = `${settings[k]}%`;
@@ -59,6 +61,7 @@ async function main() {
   $('size').max = init.sizeMax;
   bindRange('size', 'size', (v) => `${v}px`);
   $('size').oninput = () => { $('size-out').textContent = `${$('size').value}px`; host.set('size', Number($('size').value)); };
+  bindRange('volume', 'volume', (v) => `${v}%`);
   bindRange('tiredAt', 'tiredAt', (v) => `${v}%`);
   bindRange('faintAt', 'faintAt', (v) => `${v}%`);
   bindRange('napAt', 'napAt', (v) => `${v}%`);

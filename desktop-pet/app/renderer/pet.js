@@ -2,10 +2,11 @@
 // 撫子桌寵：畫面與行為
 //
 // 優先序：使用者互動（拖曳、摸頭）> 測試狀態 > Claude 狀態（暈倒 > 睡覺 > 疲憊 > 工作 > 思考 …）> 隨機行為
-/* global PetCore */
+/* global PetCore, VoiceCore */
 
 const host = window.petHost;
 const core = PetCore;
+const voiceCore = VoiceCore;
 
 const canvas = document.getElementById('pet');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -17,7 +18,7 @@ const fxEl = document.getElementById('fx');
 // 沒有左右腳交替的素材，用「大步 → 收腳 → 抬後腳 → 跨出」四張輪播
 const WALK_FRAMES = ['walk4', 'walk1', 'walk2', 'walk3'];
 const ACTION_LINES = {
-  yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '耶！', nap: 'Zzz…',
+  yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '好耶～', nap: 'Zzz…',
   curious: '嗯？', pose: '♪', happy: '嘿嘿♪', pat: '再摸一下嘛…', drag: '哇！放我下來～', dizzy: '暈…',
 };
 
@@ -38,6 +39,9 @@ const S = {
   lastInteraction: performance.now(),
   lastClaudeActive: performance.now(),
   say: null,        // { text, until }
+  voice: {},        // key → [{ text, file }]
+  voiceLast: {},    // key → 上次唸的是第幾句
+  voiceAt: {},      // key → 上次開口的時間（冷卻用）
 };
 
 // 目前畫面要怎麼畫
@@ -59,9 +63,56 @@ const groundPx = () => (S.manifest.ground / S.manifest.canvas) * S.size;
 const groundY = () => S.workArea.y + S.workArea.height - S.bubbleH - groundPx();
 const onGround = () => Math.abs(S.pos.y - groundY()) < 2;
 
-function say(key, ms = 1800) {
-  const text = ACTION_LINES[key] || key;
-  S.say = { text, until: performance.now() + ms };
+// ---------- 語音 ----------
+const VOICE_DIR = '../voice/';
+const VOICE_COOLDOWN = { thinking: 60000, working: 60000, tired: 120000, exhausted: 120000, faint: 120000, nap: 30000 };
+const audioCache = {};
+let nowPlaying = null;
+
+// 從該狀態的 2~3 句裡隨機挑一句（不連續重複）；沒有台詞表就回 null
+function chooseLine(key) {
+  const arr = S.voice[key];
+  if (!arr || !arr.length) return null;
+  const i = voiceCore.pickIndex(arr.length, S.voiceLast[key]);
+  S.voiceLast[key] = i;
+  return arr[i];
+}
+
+function playFile(file) {
+  const s = S.settings;
+  if (!s.voice || !file || !(s.volume > 0)) return;
+  try {
+    let a = audioCache[file];
+    if (!a) { a = new Audio(VOICE_DIR + file); a.preload = 'auto'; audioCache[file] = a; } // 第一次要用才載入
+    if (nowPlaying && nowPlaying !== a) nowPlaying.pause();
+    a.volume = clamp(s.volume / 100, 0, 1);
+    a.currentTime = 0;
+    nowPlaying = a;
+    a.play().catch(() => {}); // 音檔壞掉或被擋下就靜音，不影響動作
+  } catch (_) { /* ignore */ }
+}
+
+// 這個狀態現在可以開口嗎（冷卻中就安靜，字照出）
+function voiceReady(key) {
+  const now = performance.now();
+  if (now - (S.voiceAt[key] || -1e9) < (VOICE_COOLDOWN[key] || 4000)) return false;
+  S.voiceAt[key] = now;
+  return true;
+}
+
+// 回傳要顯示的字：有台詞表就用挑到的那句（跟聲音同步），沒有就用固定字
+function say(key, ms = 1800, opts = {}) {
+  const line = chooseLine(key);
+  const text = line ? line.text : (ACTION_LINES[key] || key);
+  if (line && line.file && voiceReady(key)) playFile(line.file);
+  if (!opts.mute) S.say = { text, until: performance.now() + ms };
+  return text;
+}
+
+// Claude 狀態切換時只出聲，字仍由狀態機（含工具名、剩餘體力等即時資訊）決定
+function sayClaude(body) {
+  const line = chooseLine(body);
+  if (line && line.file && voiceReady(body)) playFile(line.file);
 }
 
 function moveTo(x, y) {
@@ -235,7 +286,7 @@ function poseMode(kind, duration) {
   const dur = duration || conf.dur;
   return {
     name: kind,
-    enter() { if (kind !== 'curious') say(kind); },
+    enter() { say(kind, 1800, { mute: kind === 'curious' }); },
     update(dt, t) {
       view.sprite = conf.sprite;
       breathe(t, kind === 'nap' ? 0.012 : 0.008, kind === 'nap' ? 4.5 : 3.2);
@@ -305,7 +356,7 @@ function flyMode() {
   return {
     name: 'fly',
     ownsPosition: true,
-    enter() { say('咻～', 1400); },
+    enter() { say('fly', 1400); },
     update(dt, t) {
       const p = pts[i];
       const ex = p.x - S.pos.x;
@@ -615,6 +666,7 @@ function tick(dt) {
       else setMode(lastBody === 'done' ? idleMode(rand(3, 6)) : idleMode(rand(2, 5)));
     }
   }
+  if (r.body !== lastBody && r.body !== 'free') sayClaude(r.body);
   lastBody = r.body;
 
   modeT += dt;
@@ -703,6 +755,7 @@ async function start() {
   S.settings = init.settings;
   S.manifest = init.manifest;
   S.snapshot = init.snapshot;
+  if (init.voice) S.voice = voiceCore.build(init.voice.lines, init.voice.files);
   S.forced = init.forced;
   S.size = S.settings.size;
   await buildBitmaps();
@@ -728,6 +781,14 @@ async function start() {
     if (k !== 'fly' && !onGround()) { setMode(fallMode(() => setMode(make()))); return; }
     setMode(make());
   });
+  // 休眠喚醒後：清掉殘留的按住狀態，並重新宣告穿透狀態（跟主程序一致）
+  host.onRecover(() => {
+    drag.down = null; drag.active = false;
+    S.ignoring = true; S.hover = false;
+    if (mode && mode.name === 'drag') { refreshGeom(true).then(() => setMode(fallMode())); }
+  });
+  // 保險：滑鼠停在她身上時，每秒重新宣告一次「接住滑鼠」，萬一狀態不同步也會自己修好
+  setInterval(() => { if (S.hover && !S.ignoring && !drag.active) host.setIgnore(false); }, 1000);
   host.onDragMove((v) => { drag.vx = v.vx * 60; });
 
   canvas.addEventListener('pointerdown', onPointerDown);

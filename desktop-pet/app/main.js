@@ -1,7 +1,7 @@
 'use strict';
 // 撫子桌寵：Electron 主程序
 // 負責：透明視窗、點擊穿透切換、拖曳、右鍵選單、設定保存、輪詢 Claude 狀態檔。
-const { app, BrowserWindow, ipcMain, Menu, Tray, screen, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, screen, shell, nativeImage, powerMonitor } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const bridge = require('./lib/bridge');
@@ -23,6 +23,8 @@ const DEFAULT_SETTINGS = {
   random: true,
   bubble: true,
   staminaAlways: false,
+  voice: true,
+  volume: 60,
   alwaysOnTop: true,
   tiredAt: 85,
   faintAt: 100,
@@ -141,12 +143,31 @@ function setSize(size) {
   broadcastSettings();
 }
 
+// 語音台詞表 + 實際存在的音檔（沒有音檔就只出字，不會壞）
+function readVoice() {
+  const dir = path.join(__dirname, 'voice');
+  let lines = {};
+  let files = [];
+  try { lines = JSON.parse(fs.readFileSync(path.join(dir, 'lines.json'), 'utf8')); } catch (_) { /* 沒有台詞表就當沒有語音 */ }
+  try { files = fs.readdirSync(dir); } catch (_) { /* ignore */ }
+  return { lines, files };
+}
+
 function updateSetting(key, value) {
   settings[key] = value;
   if (key === 'alwaysOnTop' && pet) pet.setAlwaysOnTop(!!value, 'floating');
   if (key === 'size') return setSize(value);
   saveSettingsSoon();
   broadcastSettings();
+}
+
+function recoverPet() {
+  if (!pet || pet.isDestroyed()) return;
+  clearInterval(dragTimer);
+  dragTimer = null;
+  pet.setIgnoreMouseEvents(true, { forward: true });
+  pet.setAlwaysOnTop(!!settings.alwaysOnTop, 'floating');
+  send('pet:recover');
 }
 
 // ---------- Claude 狀態檔輪詢 ----------
@@ -202,6 +223,13 @@ function menuTemplate() {
     { label: '隨機動作', type: 'checkbox', checked: settings.random, click: (i) => updateSetting('random', i.checked) },
     { label: '在螢幕下緣走動', type: 'checkbox', checked: settings.walk, click: (i) => updateSetting('walk', i.checked) },
     { label: '偶爾飛起來', type: 'checkbox', checked: settings.fly, click: (i) => updateSetting('fly', i.checked) },
+    { label: '語音', type: 'checkbox', checked: settings.voice, click: (i) => updateSetting('voice', i.checked) },
+    {
+      label: '音量',
+      submenu: [20, 40, 60, 80, 100].map((v) => ({
+        label: `${v}%`, type: 'radio', checked: Math.abs(settings.volume - v) < 10, click: () => updateSetting('volume', v),
+      })),
+    },
     { label: '頭上小字', type: 'checkbox', checked: settings.bubble, click: (i) => updateSetting('bubble', i.checked) },
     { label: '體力條常駐', type: 'checkbox', checked: settings.staminaAlways, click: (i) => updateSetting('staminaAlways', i.checked) },
     { label: '保持在最上層', type: 'checkbox', checked: settings.alwaysOnTop, click: (i) => updateSetting('alwaysOnTop', i.checked) },
@@ -260,6 +288,7 @@ function setupIPC() {
     bubbleH: BUBBLE_H,
     manifest: bridge.readJSON(path.join(__dirname, 'sprites', 'manifest.json')),
     snapshot: bridge.readSnapshot(),
+    voice: readVoice(),
     stateDir: bridge.stateDir(),
   }));
 
@@ -361,6 +390,12 @@ if (!app.requestSingleInstanceLock()) {
     makeTray();
     setInterval(pollSnapshot, 600);
     if (process.argv.includes('--panel')) openPanel();
+    // 螢幕休眠／鎖定／換顯示器後，透明視窗的滑鼠穿透狀態可能跟畫面端不同步（能摸頭但拎不起來）
+    // → 重設成「穿透＋轉發移動」，並通知畫面端清掉殘留的按住狀態
+    for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(recoverPet, 800));
+    screen.on('display-metrics-changed', () => setTimeout(recoverPet, 800));
+    screen.on('display-added', () => setTimeout(recoverPet, 800));
+    screen.on('display-removed', () => setTimeout(recoverPet, 800));
   });
   app.on('window-all-closed', () => app.quit());
 }

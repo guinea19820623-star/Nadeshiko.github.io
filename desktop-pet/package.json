@@ -6,6 +6,7 @@
     "setup": "npm --prefix app install",
     "start": "npm --prefix app start",
     "panel": "npm --prefix app run panel",
+    "voices": "node tools/generate-voices.js",
     "hooks:install": "node tools/install-claude.js",
     "hooks:dry-run": "node tools/install-claude.js --dry-run",
     "hooks:uninstall": "node tools/install-claude.js --uninstall",
