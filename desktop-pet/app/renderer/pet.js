@@ -65,7 +65,7 @@ const onGround = () => Math.abs(S.pos.y - groundY()) < 2;
 
 // ---------- 語音 ----------
 const VOICE_DIR = '../voice/';
-const VOICE_COOLDOWN = { thinking: 60000, working: 60000, tired: 120000, exhausted: 120000, faint: 120000, nap: 30000 };
+const VOICE_COOLDOWN = { thinking: 60000, working: 60000, tired: 120000, exhausted: 120000, faint: 120000, nap: 30000, sit: 30000 };
 const audioCache = {};
 let nowPlaying = null;
 
@@ -234,11 +234,22 @@ let mode = null;
 let modeT = 0;
 
 function setMode(m) {
+  // 躺著（睡覺、暈倒）要換成別的動作時，先慢慢爬起來；被拎起則直接抓走
+  if (mode && mode.lying && !m.lying && m.name !== 'drag' && m.name !== 'wake') m = wakeMode();
   if (mode && mode.exit) mode.exit();
   mode = m;
   modeT = 0;
   Object.assign(view, { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, pivot: 'feet' });
   if (m.enter) m.enter();
+}
+
+// 有閉眼版（xxx_b）的姿勢，每隔幾秒眨一下眼；seed 讓不同姿勢不要同時眨
+function eyes(base, t, seed = 0) {
+  if (!S.manifest.sprites[`${base}_b`]) return base;
+  const u = t + seed;
+  const p = u % 4.6;
+  const closed = p < 0.13 || (p > 0.3 && p < 0.42 && Math.floor(u / 4.6) % 4 === 0);
+  return closed ? `${base}_b` : base;
 }
 
 function breathe(t, amp = 0.008, period = 3.2) {
@@ -298,10 +309,60 @@ function poseMode(kind, duration) {
         view.dy = -hop * S.size * 0.045 * (t < dur - 0.3 ? 1 : 0);
       }
       if (kind === 'curious') {
-        view.sprite = Math.floor(t / 1.2) % 2 ? 'curious2' : 'curious';
+        view.sprite = eyes(Math.floor(t / 1.2) % 2 ? 'curious2' : 'curious', t, 0.7);
         view.rot = Math.sin(t * 1.6) * 0.02;
       }
       return t < dur;
+    },
+  };
+}
+
+// 坐下等待：跪坐與側坐隨機一種，偶爾眨眼
+function sitMode() {
+  const kind = Math.random() < 0.5 ? 'sit1' : 'sit2';
+  const dur = rand(25, 60);
+  return {
+    name: 'sit',
+    enter() { say('sit', 2200); },
+    update(dt, t) {
+      view.sprite = eyes(kind, t, kind === 'sit1' ? 0.4 : 2.1);
+      breathe(t, 0.007, 3.8);
+      // 剛坐下時輕輕沉一下
+      if (t < 0.4) view.dy = Math.sin((t / 0.4) * Math.PI) * S.size * 0.012;
+      return t < dur;
+    },
+  };
+}
+
+// 太久沒人理：側身躺下睡覺，直到有人摸她、點她或 Claude 開始工作
+function lieMode() {
+  return {
+    name: 'nap',
+    lying: true,
+    enter() { say('nap', 2200); },
+    update(dt, t) {
+      view.sprite = 'sleepside';
+      breathe(t, 0.012, 4.8);
+      return true;
+    },
+  };
+}
+
+// 睡醒／暈倒後爬起來：躺著撐起 → 坐起揉眼睛 → 準備站起，然後接回站立
+function wakeMode() {
+  const seq = [['wake1', 1.5], ['wake2', 1.7], ['wake3', 1.3]];
+  const total = seq.reduce((a, [, d]) => a + d, 0);
+  return {
+    name: 'wake',
+    enter() { S.lastInteraction = performance.now(); say('wake', 2400); },
+    update(dt, t) {
+      let acc = 0;
+      for (const [k, d] of seq) {
+        if (t < acc + d) { view.sprite = k === 'wake1' ? k : eyes(k, t, 0.3); break; }
+        acc += d;
+      }
+      breathe(t, 0.008, 2.6);
+      return t < total;
     },
   };
 }
@@ -434,21 +495,22 @@ function claudeMode(body) {
   return {
     name: `claude:${body}`,
     body,
+    lying: body === 'exhausted' || body === 'faint',
     update(dt, t) {
       switch (body) {
         case 'thinking':
-          view.sprite = 'think';
+          view.sprite = eyes('think', t);
           breathe(t);
           view.rot = Math.sin(t * 1.9) * 0.018;
           break;
         case 'working':
-          view.sprite = 'work';
+          view.sprite = eyes(Math.floor(t / 4.5) % 2 ? 'work2' : 'work', t);
           breathe(t, 0.006, 2.4);
           view.dy = -Math.abs(Math.sin(t * Math.PI * 3.2)) * S.size * 0.004;
           break;
         case 'waiting':
         case 'hello':
-          view.sprite = 'wave';
+          view.sprite = eyes('wave', t, 1.3);
           breathe(t);
           view.rot = Math.sin(t * Math.PI * 4.4) * 0.035;
           break;
@@ -459,18 +521,19 @@ function claudeMode(body) {
           break;
         }
         case 'error':
-          view.sprite = 'curious2';
+          view.sprite = eyes('confused', t);
           breathe(t);
+          view.rot = Math.sin(t * 1.7) * 0.02;
           break;
         case 'tired': {
           // 偶爾打個哈欠
           const cyc = t % 14;
-          view.sprite = cyc > 11.5 ? 'yawn' : 'tired';
+          view.sprite = cyc > 11.5 ? 'yawn' : eyes('tired', t, 0.9);
           breathe(t, 0.012, 4.6);
           break;
         }
         case 'exhausted':
-          view.sprite = 'sleep';
+          view.sprite = 'sleepside';
           breathe(t, 0.014, 4.8);
           break;
         case 'faint':
@@ -495,8 +558,17 @@ function dragMode() {
     ownsPosition: true,
     enter() { say('drag', 1500); },
     update(dt, t) {
-      view.sprite = 'drag';
+      // 兩張交替，像在空中亂踢腳；第二張頭的位置不同，位移補回讓頭對著游標
+      const alt = Math.floor(t / 0.45) % 2 === 1;
+      view.sprite = alt ? eyes('drag2', t) : 'drag';
       view.pivot = 'grip';
+      const a = S.manifest.sprites.drag;
+      const b = S.manifest.sprites.drag2;
+      if (alt && b) {
+        const k = S.size / S.manifest.canvas;
+        view.dx = (a.head[0] - b.head[0]) * k;
+        view.dy = (a.head[1] - b.head[1]) * k;
+      }
       // 彈簧擺動：被往右甩，身體往左晃（以拎住的後頸為軸）
       const target = clamp(-drag.vx * 0.0008, -0.35, 0.35);
       drag.swingV += ((target - drag.swing) * 60 - drag.swingV * 6) * dt;
@@ -620,14 +692,15 @@ function claudeState() {
 }
 
 const INTERACTIONS = new Set(['drag', 'fall', 'pat', 'happy']);
-const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap']);
+const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit']);
 
 function chooseFree() {
   const s = S.settings;
   const idleFor = (performance.now() - Math.max(S.lastInteraction, S.lastClaudeActive)) / 1000;
   if (!s.random) return idleMode(Infinity);
   // 冷落太久就睡午覺，有人來（滑鼠、Claude）就醒
-  if (idleFor > 12 * 60 && Math.random() < 0.6) return poseMode('nap');
+  if (idleFor > 5 * 60 && onGround()) return lieMode();
+  if (idleFor > 80 && onGround() && Math.random() < 0.7) return sitMode();
   const hour = new Date().getHours();
   const late = hour >= 23 || hour < 6;
   const k = pick({
@@ -653,7 +726,8 @@ function tick(dt) {
   if (r.activity !== 'idle' || r.body !== 'free') S.lastClaudeActive = performance.now();
 
   const busy = mode && INTERACTIONS.has(mode.name);
-  if (!busy) {
+  const waking = mode && mode.name === 'wake';
+  if (!busy && !waking) {
     if (r.body !== 'free') {
       // Claude 有狀態：在空中先落地，再擺對應姿勢
       if (!mode || mode.body !== r.body) {
@@ -777,7 +851,7 @@ async function start() {
   host.onAction((k) => {
     S.lastInteraction = performance.now();
     if (k === 'land') { refreshGeom(true).then(() => setMode(fallMode())); return; }
-    const make = k === 'walk' ? walkMode : k === 'fly' ? flyMode : () => poseMode(k);
+    const make = k === 'walk' ? walkMode : k === 'fly' ? flyMode : k === 'sit' ? sitMode : k === 'nap' ? lieMode : k === 'wake' ? wakeMode : () => poseMode(k);
     if (k !== 'fly' && !onGround()) { setMode(fallMode(() => setMode(make()))); return; }
     setMode(make());
   });

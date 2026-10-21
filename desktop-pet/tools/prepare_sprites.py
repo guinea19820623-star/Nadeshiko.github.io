@@ -21,6 +21,7 @@ CENTER = 550           # 頭部中心所在的 x
 #   front：同一張底圖改出來的正面立繪，共用固定位移，切換時身體不會抖
 #   auto ：以頭部中心 x、外框底部 y 對齊
 #   box  ：以外框中心 x、外框底部 y 對齊（躺下、橫向的圖）
+#   boxh ：同 box，但記錄的頭部位置用頭部 alpha 重心（被拎起第二張：頭偏一邊，拖曳時要把頭對到游標）
 # 第三個值（可省略）是額外縮放：側身與飛行圖孵出來時臉比較小，放大一點讓臉的大小一致
 SPRITES = {
     "idle":       ("Qwen_image_2.1_00027.png", "front"),
@@ -47,6 +48,29 @@ SPRITES = {
     "walk4":      ("Qwen_image_2.1_00019.png", "auto", 1.06),
     "walk5":      ("9ec4f8ce-55ae-41de-89a6-1f7251bb80a7", "auto", 1.06),
     "pose":       ("1793e431-d033-4131-b125-5722b41a6ba5", "auto"),
+    # --- v0.3：新動作（2026-10-21） ---
+    "work2":      ("Qwen_image_2.1_00060.png", "front"),
+    "work2_b":    ("Qwen_image_2.1_00060-1.png", "front"),
+    "work_b":     ("Qwen_image_2.1_00032-1.png", "front"),
+    "think_b":    ("Qwen_image_2.1_00031-1.png", "front"),
+    "tired_b":    ("Qwen_image_2.1_00023-1.png", "front"),
+    "curious_b":  ("Qwen_image_2.1_00026-1.png", "front"),
+    "curious2_b": ("Qwen_image_2.1_00036-1.png", "front"),
+    "wave_b":     ("Qwen_image_2.1_00038-1.png", "front"),
+    "drag2":      ("Qwen_image_2.1_00068.png", "boxh"),
+    "drag2_b":    ("Qwen_image_2.1_00068-1.png", "boxh"),
+    "confused":   ("Qwen_image_2.1_00072.png", "auto", 1.12),
+    "confused_b": ("Qwen_image_2.1_00072-1.png", "auto", 1.12),
+    "sit1":       ("Qwen_image_2.1_00061.png", "auto", 0.95),
+    "sit1_b":     ("Qwen_image_2.1_00061-1.png", "auto", 0.95),
+    "sit2":       ("Qwen_image_2.1_00063.png", "auto", 1.08),
+    "sit2_b":     ("Qwen_image_2.1_00063-1.png", "auto", 1.08),
+    "sleepside":  ("Qwen_image_2.1_00062.png", "box"),
+    "wake1":      ("Qwen_image_2.1_00062-2.png", "box"),
+    "wake2":      ("Qwen_image_2.1_00062-3.png", "auto", 0.97),
+    "wake2_b":    ("Qwen_image_2.1_00062-3-1.png", "auto", 0.97),
+    "wake3":      ("Qwen_image_2.1_00062-4.png", "auto", 0.97),
+    "wake3_b":    ("Qwen_image_2.1_00062-4-1.png", "auto", 0.97),
 }
 FRONT_REF = "idle"
 
@@ -94,7 +118,9 @@ def main():
     manifest = {"canvas": args.size, "ground": round(GROUND * scale), "sprites": {}}
     missing = []
     cache = {}
-    order = sorted(SPRITES, key=lambda k: k != FRONT_REF)  # 先算 front 基準
+    # 先算 front 基準；閉眼版（_b）排在原圖後面，共用原圖的位移，眨眼時才不會跳
+    order = sorted(SPRITES, key=lambda k: (k != FRONT_REF, k.endswith('_b')))
+    offsets = {}
     for key in order:
         name, mode, *extra = SPRITES[key]
         zoom = extra[0] if extra else 1.0
@@ -114,8 +140,11 @@ def main():
             dx, dy = front_offset
         elif mode == "auto":
             dx, dy = CENTER - head_x(a), GROUND - y1
-        else:
+        else:  # box / boxh
             dx, dy = CENTER - (x0 + x1) / 2, GROUND - y1
+        if key.endswith("_b") and key[:-2] in offsets:
+            dx, dy = offsets[key[:-2]]
+        offsets[key] = (dx, dy)
         canvas = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
         canvas.alpha_composite(im, (round(dx), round(dy)))
         out = canvas.convert("RGBa").resize((args.size, args.size), Image.LANCZOS).convert("RGBA")
@@ -127,7 +156,7 @@ def main():
         bx0, by0, bx1, by1 = out.getbbox()
         manifest["sprites"][key] = {
             "file": fn, "source": name, "bbox": [bx0, by0, bx1, by1],
-            "head": [round(CENTER * scale) if mode != "box" else round((bx0 + bx1) / 2), by0],
+            "head": [round(head_x(oa)) if mode == "boxh" else round(CENTER * scale) if mode not in ("box",) else round((bx0 + bx1) / 2), by0],
         }
         print(f"{key:9s} <- {name}  bbox={bx0,by0,bx1,by1}")
     with open(os.path.join(args.out, "manifest.json"), "w", encoding="utf-8") as f:

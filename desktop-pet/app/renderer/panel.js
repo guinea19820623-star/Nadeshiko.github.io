@@ -25,7 +25,7 @@ const SIM = [
 ];
 const ACTIONS = [
   ['walk', '走一走'], ['fly', '飛一圈'], ['yawn', '打哈欠'], ['stretch', '伸懶腰'],
-  ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '睡午覺'], ['land', '回到地面'],
+  ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '側睡'], ['sit', '坐下休息'], ['wake', '睡醒爬起來'], ['land', '回到地面'],
 ];
 
 let settings = {};
@@ -54,6 +54,7 @@ function render() {
 }
 
 async function main() {
+  $('close').onclick = () => window.close();
   const init = await host.init();
   settings = init.settings;
   forced = init.forced;

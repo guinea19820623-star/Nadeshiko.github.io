@@ -112,7 +112,7 @@ function createPet() {
       backgroundThrottling: false,
     },
   });
-  if (settings.alwaysOnTop) pet.setAlwaysOnTop(true, 'floating');
+  applyOnTop();
   pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
   pet.setIgnoreMouseEvents(true, { forward: true });
   pet.loadFile(path.join(__dirname, 'renderer', 'index.html'));
@@ -155,10 +155,23 @@ function readVoice() {
 
 function updateSetting(key, value) {
   settings[key] = value;
-  if (key === 'alwaysOnTop' && pet) pet.setAlwaysOnTop(!!value, 'floating');
+  if (key === 'alwaysOnTop' && pet) applyOnTop();
   if (key === 'size') return setSize(value);
   saveSettingsSoon();
   broadcastSettings();
+}
+
+// 「保持在最上層」：用最高的層級（screen-saver），瀏覽器或影片全螢幕時才比較不會被蓋住；
+// macOS 另外讓她出現在全螢幕的桌面空間。Windows 上的實際效果仍取決於全螢幕程式的種類，見 README。
+function applyOnTop() {
+  if (!pet || pet.isDestroyed()) return;
+  if (settings.alwaysOnTop) {
+    pet.setAlwaysOnTop(true, 'screen-saver');
+    if (process.platform === 'darwin') pet.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    pet.moveTop();
+  } else {
+    pet.setAlwaysOnTop(false);
+  }
 }
 
 function recoverPet() {
@@ -166,7 +179,7 @@ function recoverPet() {
   clearInterval(dragTimer);
   dragTimer = null;
   pet.setIgnoreMouseEvents(true, { forward: true });
-  pet.setAlwaysOnTop(!!settings.alwaysOnTop, 'floating');
+  applyOnTop();
   send('pet:recover');
 }
 
@@ -196,6 +209,7 @@ const TEST_STATES = [
 const ACTIONS = [
   ['walk', '走一走'], ['fly', '飛一圈'], ['yawn', '打哈欠'], ['stretch', '伸懶腰'],
   ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '睡午覺'],
+  ['sit', '坐下休息'], ['wake', '睡醒爬起來'],
 ];
 
 function menuTemplate() {
@@ -273,7 +287,9 @@ function resetPosition() {
 function openPanel() {
   if (panel && !panel.isDestroyed()) { panel.show(); panel.focus(); return; }
   panel = new BrowserWindow({
-    width: 420, height: 720, title: '撫子 控制面板', autoHideMenuBar: true,
+    // 羊皮紙卷軸當窗框：無邊框、透明，內容限制在紙面內（比例 560:778）
+    width: 560, height: 778, title: '撫子 控制面板', autoHideMenuBar: true,
+    frame: false, transparent: true, resizable: false, hasShadow: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   panel.loadFile(path.join(__dirname, 'renderer', 'panel.html'));
@@ -389,6 +405,7 @@ if (!app.requestSingleInstanceLock()) {
     createPet();
     makeTray();
     setInterval(pollSnapshot, 600);
+    setInterval(() => { if (settings.alwaysOnTop && pet && !pet.isDestroyed() && pet.isVisible()) pet.moveTop(); }, 3000);
     if (process.argv.includes('--panel')) openPanel();
     // 螢幕休眠／鎖定／換顯示器後，透明視窗的滑鼠穿透狀態可能跟畫面端不同步（能摸頭但拎不起來）
     // → 重設成「穿透＋轉發移動」，並通知畫面端清掉殘留的按住狀態

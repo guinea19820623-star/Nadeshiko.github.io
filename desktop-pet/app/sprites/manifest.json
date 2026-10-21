@@ -63,13 +63,13 @@
    "source": "Qwen_image_2.1_00026.png",
    "bbox": [
     127,
-    33,
+    35,
     543,
     649
    ],
    "head": [
     330,
-    33
+    35
    ]
   },
   "curious2": {
@@ -118,14 +118,14 @@
    "file": "yawn.png",
    "source": "Qwen_image_2.1_00033.png",
    "bbox": [
-    127,
-    31,
-    544,
+    20,
+    33,
+    543,
     649
    ],
    "head": [
     330,
-    31
+    33
    ]
   },
   "wave": {
@@ -336,6 +336,314 @@
    "head": [
     330,
     34
+   ]
+  },
+  "work2": {
+   "file": "work2.png",
+   "source": "Qwen_image_2.1_00060.png",
+   "bbox": [
+    127,
+    33,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    33
+   ]
+  },
+  "drag2": {
+   "file": "drag2.png",
+   "source": "Qwen_image_2.1_00068.png",
+   "bbox": [
+    79,
+    86,
+    581,
+    648
+   ],
+   "head": [
+    430,
+    86
+   ]
+  },
+  "confused": {
+   "file": "confused.png",
+   "source": "Qwen_image_2.1_00072.png",
+   "bbox": [
+    135,
+    33,
+    538,
+    647
+   ],
+   "head": [
+    330,
+    33
+   ]
+  },
+  "sit1": {
+   "file": "sit1.png",
+   "source": "Qwen_image_2.1_00061.png",
+   "bbox": [
+    89,
+    80,
+    588,
+    648
+   ],
+   "head": [
+    330,
+    80
+   ]
+  },
+  "sit2": {
+   "file": "sit2.png",
+   "source": "Qwen_image_2.1_00063.png",
+   "bbox": [
+    33,
+    0,
+    532,
+    649
+   ],
+   "head": [
+    330,
+    0
+   ]
+  },
+  "sleepside": {
+   "file": "sleepside.png",
+   "source": "Qwen_image_2.1_00062.png",
+   "bbox": [
+    22,
+    134,
+    638,
+    648
+   ],
+   "head": [
+    330,
+    134
+   ]
+  },
+  "wake1": {
+   "file": "wake1.png",
+   "source": "Qwen_image_2.1_00062-2.png",
+   "bbox": [
+    24,
+    241,
+    637,
+    648
+   ],
+   "head": [
+    330,
+    241
+   ]
+  },
+  "wake2": {
+   "file": "wake2.png",
+   "source": "Qwen_image_2.1_00062-3.png",
+   "bbox": [
+    102,
+    112,
+    554,
+    647
+   ],
+   "head": [
+    330,
+    112
+   ]
+  },
+  "wake3": {
+   "file": "wake3.png",
+   "source": "Qwen_image_2.1_00062-4.png",
+   "bbox": [
+    119,
+    80,
+    557,
+    648
+   ],
+   "head": [
+    330,
+    80
+   ]
+  },
+  "work2_b": {
+   "file": "work2_b.png",
+   "source": "Qwen_image_2.1_00060-1.png",
+   "bbox": [
+    127,
+    33,
+    542,
+    649
+   ],
+   "head": [
+    330,
+    33
+   ]
+  },
+  "work_b": {
+   "file": "work_b.png",
+   "source": "Qwen_image_2.1_00032-1.png",
+   "bbox": [
+    127,
+    33,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    33
+   ]
+  },
+  "think_b": {
+   "file": "think_b.png",
+   "source": "Qwen_image_2.1_00031-1.png",
+   "bbox": [
+    127,
+    35,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    35
+   ]
+  },
+  "tired_b": {
+   "file": "tired_b.png",
+   "source": "Qwen_image_2.1_00023-1.png",
+   "bbox": [
+    132,
+    33,
+    549,
+    649
+   ],
+   "head": [
+    330,
+    33
+   ]
+  },
+  "curious_b": {
+   "file": "curious_b.png",
+   "source": "Qwen_image_2.1_00026-1.png",
+   "bbox": [
+    127,
+    34,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    34
+   ]
+  },
+  "curious2_b": {
+   "file": "curious2_b.png",
+   "source": "Qwen_image_2.1_00036-1.png",
+   "bbox": [
+    127,
+    36,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    36
+   ]
+  },
+  "wave_b": {
+   "file": "wave_b.png",
+   "source": "Qwen_image_2.1_00038-1.png",
+   "bbox": [
+    127,
+    34,
+    543,
+    649
+   ],
+   "head": [
+    330,
+    34
+   ]
+  },
+  "drag2_b": {
+   "file": "drag2_b.png",
+   "source": "Qwen_image_2.1_00068-1.png",
+   "bbox": [
+    79,
+    84,
+    583,
+    651
+   ],
+   "head": [
+    429,
+    84
+   ]
+  },
+  "confused_b": {
+   "file": "confused_b.png",
+   "source": "Qwen_image_2.1_00072-1.png",
+   "bbox": [
+    134,
+    31,
+    537,
+    648
+   ],
+   "head": [
+    330,
+    31
+   ]
+  },
+  "sit1_b": {
+   "file": "sit1_b.png",
+   "source": "Qwen_image_2.1_00061-1.png",
+   "bbox": [
+    88,
+    80,
+    588,
+    647
+   ],
+   "head": [
+    330,
+    80
+   ]
+  },
+  "sit2_b": {
+   "file": "sit2_b.png",
+   "source": "Qwen_image_2.1_00063-1.png",
+   "bbox": [
+    31,
+    0,
+    532,
+    649
+   ],
+   "head": [
+    330,
+    0
+   ]
+  },
+  "wake2_b": {
+   "file": "wake2_b.png",
+   "source": "Qwen_image_2.1_00062-3-1.png",
+   "bbox": [
+    101,
+    111,
+    555,
+    646
+   ],
+   "head": [
+    330,
+    111
+   ]
+  },
+  "wake3_b": {
+   "file": "wake3_b.png",
+   "source": "Qwen_image_2.1_00062-4-1.png",
+   "bbox": [
+    117,
+    80,
+    556,
+    648
+   ],
+   "head": [
+    330,
+    80
    ]
   }
  }
