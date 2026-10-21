@@ -187,22 +187,37 @@ public class NW {
 [NW]::List(__PID__)
 `;
 
-let windowsCache = { at: 0, list: [] };
+let windowsCache = { at: 0, res: { list: [], error: null } };
 let windowsBusy = null;
+let psFile = null;
 
+// 回傳 { list, error }；error 說明為什麼拿不到（給「找不到視窗」的提示用）
 function listWindows() {
-  if (process.platform !== 'win32') return Promise.resolve([]);
-  if (Date.now() - windowsCache.at < 2000) return Promise.resolve(windowsCache.list);
+  if (process.platform !== 'win32') return Promise.resolve({ list: [], error: '只有 Windows 能偵測視窗' });
+  if (Date.now() - windowsCache.at < 1500) return Promise.resolve(windowsCache.res);
   if (windowsBusy) return windowsBusy;
   windowsBusy = new Promise((resolve) => {
     let out = '';
+    let err = '';
     let done = false;
-    const finish = (list) => { if (done) return; done = true; windowsBusy = null; windowsCache = { at: Date.now(), list }; resolve(list); };
+    const finish = (list, error) => {
+      if (done) return; done = true; windowsBusy = null;
+      const res = { list, error: error || null };
+      if (error) console.error('[perch]', error);
+      windowsCache = { at: Date.now(), res };
+      resolve(res);
+    };
     try {
-      const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '-'], { windowsHide: true });
-      const timer = setTimeout(() => { try { ps.kill(); } catch (_) { /* ignore */ } finish([]); }, 6000);
+      // 寫成暫存的 .ps1 再用 -File 執行（比從 stdin 餵多行的 C# 區塊穩）
+      if (!psFile) {
+        psFile = path.join(app.getPath('temp'), `nadeshiko-windows-${process.pid}.ps1`);
+      }
+      fs.writeFileSync(psFile, '\ufeff' + LIST_WINDOWS_PS.replace('__PID__', String(process.pid)), 'utf8');
+      const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psFile], { windowsHide: true });
+      const timer = setTimeout(() => { try { ps.kill(); } catch (_) { /* ignore */ } finish([], 'PowerShell 逾時（第一次編譯可能較慢，會再試）'); }, 15000);
       ps.stdout.on('data', (d) => { out += d; });
-      ps.on('error', () => finish([]));
+      ps.stderr.on('data', (d) => { err += d; });
+      ps.on('error', (e) => { clearTimeout(timer); finish([], `無法啟動 PowerShell：${e.message}`); });
       ps.on('close', () => {
         clearTimeout(timer);
         try {
@@ -212,10 +227,9 @@ function listWindows() {
             const b = screen.screenToDipPoint({ x: w.x + w.w, y: w.y + w.h });
             return { id: w.id, x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
           }));
-        } catch (_) { finish([]); }
+        } catch (_) { finish([], `PowerShell 沒回傳可用的視窗清單：${(err || out).trim().slice(0, 160) || '無輸出'}`); }
       });
-      ps.stdin.end(LIST_WINDOWS_PS.replace('__PID__', String(process.pid)));
-    } catch (_) { finish([]); }
+    } catch (e) { finish([], `執行失敗：${e.message}`); }
   });
   return windowsBusy;
 }

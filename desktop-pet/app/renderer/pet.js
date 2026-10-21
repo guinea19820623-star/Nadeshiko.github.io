@@ -468,16 +468,24 @@ function flyMode() {
 
 // 坐到別的視窗上緣：飛過去 → 坐著晃腳（跟著視窗移動）→ 視窗不見或坐夠了就飛回地面。只有 Windows 能取得視窗位置。
 async function pickPerch() {
-  let list = [];
-  try { list = await host.windows(); } catch (_) { list = []; }
+  let res = { list: [], error: null };
+  try { res = await host.windows(); } catch (e) { res = { list: [], error: String(e.message || e) }; }
   const wa = S.workArea;
   const info = S.manifest.sprites.sit_edge;
   const k = S.size / S.manifest.canvas;
   const body = S.size * 0.62;
-  return list.filter((w) => w.w >= S.size * 0.55
+  const all = res.list || [];
+  const ok = all.filter((w) => w.w >= S.size * 0.55
     && w.x < wa.x + wa.width && w.x + w.w > wa.x
     && w.y - S.bubbleH - info.seat * k >= wa.y - 4 // 上緣要夠低，頭才不會出螢幕
     && w.y < wa.y + wa.height - body);
+  let why = null;
+  if (!ok.length) {
+    if (res.error) why = res.error;
+    else if (!all.length) why = '沒有偵測到其他視窗（最小化或全螢幕的不算）';
+    else why = `偵測到 ${all.length} 個視窗，但上緣都太高或太窄，頭會頂出螢幕`;
+  }
+  return { ok, why };
 }
 
 function perchMode(opts = {}) {
@@ -492,6 +500,7 @@ function perchMode(opts = {}) {
   const dur = rand(40, 110);
   let sitT = 0;
   let seekPromise = null;
+  let why = null;
   const seatPos = (w) => ({
     x: clamp(w.x + w.w * (0.5 + side * 0.22), w.x + S.size * 0.3, w.x + w.w - S.size * 0.3) - cx(),
     y: w.y - S.bubbleH - info.seat * k,
@@ -516,17 +525,17 @@ function perchMode(opts = {}) {
         view.sprite = 'idle';
         breathe(t);
         if (!seekPromise) {
-          seekPromise = pickPerch().then((c) => {
-            if (!c.length) { phase = 'none'; return; }
+          seekPromise = pickPerch().then(({ ok: c, why: w }) => {
+            if (!c.length) { why = w; phase = 'none'; return; }
             target = c[Math.floor(Math.random() * Math.min(c.length, 3))]; // 偏好最前面的幾個視窗
             phase = 'fly'; phaseT = 0;
           });
         }
-        if (phaseT > 3) { phase = 'none'; }
+        if (phaseT > 20) { why = '偵測視窗逾時'; phase = 'none'; }
         return true;
       }
       if (phase === 'none') {
-        if (opts.manual) { S.say = { text: '找不到可以坐的視窗～', until: performance.now() + 2200 }; }
+        if (opts.manual) { S.say = { text: `找不到可以坐的視窗：${why || '原因不明'}`, until: performance.now() + 6000 }; }
         return false;
       }
       if (phase === 'fly') {
@@ -543,8 +552,8 @@ function perchMode(opts = {}) {
         view.rot = Math.sin(sitT * 1.1) * 0.006;
         if (performance.now() > checkAt) {
           checkAt = performance.now() + 1500;
-          host.windows().then((list) => {
-            const w = list.find((x) => x.id === target.id);
+          host.windows().then((res) => {
+            const w = (res.list || []).find((x) => x.id === target.id);
             if (!w || w.y - S.bubbleH - info.seat * k < S.workArea.y - 4) { phase = 'leave'; phaseT = 0; return; }
             target = w;
           }).catch(() => {});
