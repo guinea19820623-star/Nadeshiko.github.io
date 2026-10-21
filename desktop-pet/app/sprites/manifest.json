@@ -286,42 +286,42 @@
    "file": "walk3.png",
    "source": "Qwen_image_2.1_00018.png",
    "bbox": [
-    62,
-    24,
-    466,
-    648
+    82,
+    71,
+    456,
+    647
    ],
    "head": [
     330,
-    24
+    71
    ]
   },
   "walk4": {
    "file": "walk4.png",
    "source": "Qwen_image_2.1_00019.png",
    "bbox": [
-    56,
-    27,
-    512,
+    76,
+    75,
+    498,
     647
    ],
    "head": [
     330,
-    27
+    75
    ]
   },
   "walk5": {
    "file": "walk5.png",
    "source": "9ec4f8ce-55ae-41de-89a6-1f7251bb80a7",
    "bbox": [
-    17,
-    27,
-    529,
-    648
+    51,
+    95,
+    507,
+    647
    ],
    "head": [
     330,
-    27
+    95
    ]
   },
   "pose": {
@@ -378,6 +378,35 @@
    "head": [
     330,
     33
+   ]
+  },
+  "sit_edge": {
+   "file": "sit_edge.png",
+   "source": "Qwen_image_2.1_00076.png",
+   "bbox": [
+    149,
+    23,
+    533,
+    647
+   ],
+   "seat": 464,
+   "head": [
+    330,
+    23
+   ]
+  },
+  "shy": {
+   "file": "shy.png",
+   "source": "Qwen_image_2.1_00077.png",
+   "bbox": [
+    145,
+    81,
+    506,
+    648
+   ],
+   "head": [
+    330,
+    81
    ]
   },
   "sit1": {
@@ -602,6 +631,35 @@
    "head": [
     330,
     31
+   ]
+  },
+  "sit_edge_b": {
+   "file": "sit_edge_b.png",
+   "source": "Qwen_image_2.1_00076-1.png",
+   "bbox": [
+    149,
+    23,
+    534,
+    646
+   ],
+   "seat": 464,
+   "head": [
+    330,
+    23
+   ]
+  },
+  "shy_b": {
+   "file": "shy_b.png",
+   "source": "Qwen_image_2.1_00077-1.png",
+   "bbox": [
+    145,
+    80,
+    507,
+    647
+   ],
+   "head": [
+    330,
+    80
    ]
   },
   "sit1_b": {

@@ -65,7 +65,7 @@ const onGround = () => Math.abs(S.pos.y - groundY()) < 2;
 
 // ---------- 語音 ----------
 const VOICE_DIR = '../voice/';
-const VOICE_COOLDOWN = { thinking: 60000, working: 60000, tired: 120000, exhausted: 120000, faint: 120000, nap: 30000, sit: 30000 };
+const VOICE_COOLDOWN = { thinking: 60000, working: 60000, tired: 120000, exhausted: 120000, faint: 120000, nap: 30000, sit: 30000, perch: 30000, shy: 8000 };
 const audioCache = {};
 let nowPlaying = null;
 
@@ -292,6 +292,7 @@ function poseMode(kind, duration) {
     curious: { sprite: 'curious', dur: 3.6 },
     pose: { sprite: 'pose', dur: 4 },
     happy: { sprite: 'happy', dur: 1.4 },
+    shy: { sprite: 'shy', dur: 2.8 },
     nap: { sprite: 'sleep', dur: Infinity },
   }[kind];
   const dur = duration || conf.dur;
@@ -308,11 +309,31 @@ function poseMode(kind, duration) {
         const hop = Math.abs(Math.sin(t * Math.PI * (kind === 'cheer' ? 2.2 : 3)));
         view.dy = -hop * S.size * 0.045 * (t < dur - 0.3 ? 1 : 0);
       }
+      if (kind === 'shy') {
+        view.sprite = eyes('shy', t, 0.5);
+        view.rot = Math.sin(t * 2.2) * 0.018;
+      }
       if (kind === 'curious') {
         view.sprite = eyes(Math.floor(t / 1.2) % 2 ? 'curious2' : 'curious', t, 0.7);
         view.rot = Math.sin(t * 1.6) * 0.02;
       }
       return t < dur;
+    },
+  };
+}
+
+// 依時段打招呼：開機後、以及跨過時段（早／午／下午／晚／深夜）時
+const periodOf = (h = new Date().getHours()) => (h >= 5 && h < 11 ? 'morning' : h < 14 && h >= 11 ? 'noon' : h >= 14 && h < 18 ? 'afternoon' : h >= 18 && h < 23 ? 'evening' : 'night');
+function greetMode(period = periodOf()) {
+  const key = `greet_${period}`;
+  return {
+    name: 'greet',
+    enter() { say(key, 2800); },
+    update(dt, t) {
+      view.sprite = 'wave';
+      breathe(t);
+      view.rot = Math.sin(t * Math.PI * 4.4) * 0.03;
+      return t < 2.8;
     },
   };
 }
@@ -445,6 +466,108 @@ function flyMode() {
   };
 }
 
+// 坐到別的視窗上緣：飛過去 → 坐著晃腳（跟著視窗移動）→ 視窗不見或坐夠了就飛回地面。只有 Windows 能取得視窗位置。
+async function pickPerch() {
+  let list = [];
+  try { list = await host.windows(); } catch (_) { list = []; }
+  const wa = S.workArea;
+  const info = S.manifest.sprites.sit_edge;
+  const k = S.size / S.manifest.canvas;
+  const body = S.size * 0.62;
+  return list.filter((w) => w.w >= S.size * 0.55
+    && w.x < wa.x + wa.width && w.x + w.w > wa.x
+    && w.y - S.bubbleH - info.seat * k >= wa.y - 4 // 上緣要夠低，頭才不會出螢幕
+    && w.y < wa.y + wa.height - body);
+}
+
+function perchMode(opts = {}) {
+  const info = S.manifest.sprites.sit_edge;
+  const k = S.size / S.manifest.canvas;
+  let phase = 'seek';
+  let target = null;
+  let phaseT = 0;
+  let checkAt = 0;
+  let vx = 0; let vy = 0;
+  let side = Math.random() < 0.5 ? -1 : 1;
+  const dur = rand(40, 110);
+  let sitT = 0;
+  let seekPromise = null;
+  const seatPos = (w) => ({
+    x: clamp(w.x + w.w * (0.5 + side * 0.22), w.x + S.size * 0.3, w.x + w.w - S.size * 0.3) - cx(),
+    y: w.y - S.bubbleH - info.seat * k,
+  });
+  const go = (dest, dt, speed) => {
+    const ex = dest.x - S.pos.x; const ey = dest.y - S.pos.y;
+    const d = Math.hypot(ex, ey);
+    if (d < 4) { moveTo(dest.x, dest.y); return true; }
+    vx += ((ex / d) * speed - vx) * Math.min(1, dt * 3);
+    vy += ((ey / d) * speed - vy) * Math.min(1, dt * 3);
+    const step = Math.min(1, d / (Math.hypot(vx, vy) * dt + 1e-6));
+    moveTo(S.pos.x + vx * dt * step, S.pos.y + vy * dt * step);
+    if (Math.abs(vx) > 8) view.flip = vx < 0;
+    return false;
+  };
+  return {
+    name: 'perch',
+    ownsPosition: true,
+    update(dt, t) {
+      phaseT += dt;
+      if (phase === 'seek') {
+        view.sprite = 'idle';
+        breathe(t);
+        if (!seekPromise) {
+          seekPromise = pickPerch().then((c) => {
+            if (!c.length) { phase = 'none'; return; }
+            target = c[Math.floor(Math.random() * Math.min(c.length, 3))]; // 偏好最前面的幾個視窗
+            phase = 'fly'; phaseT = 0;
+          });
+        }
+        if (phaseT > 3) { phase = 'none'; }
+        return true;
+      }
+      if (phase === 'none') {
+        if (opts.manual) { S.say = { text: '找不到可以坐的視窗～', until: performance.now() + 2200 }; }
+        return false;
+      }
+      if (phase === 'fly') {
+        view.sprite = Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1';
+        view.dy = Math.sin(t * 2.4) * S.size * 0.012;
+        const dest = seatPos(target);
+        if (go(dest, dt, S.size * 1.1)) { phase = 'sit'; phaseT = 0; view.flip = false; say('perch', 2600); }
+        return phaseT < 20;
+      }
+      if (phase === 'sit') {
+        sitT += dt;
+        view.sprite = eyes('sit_edge', sitT, 0.8);
+        breathe(sitT, 0.006, 3.8);
+        view.rot = Math.sin(sitT * 1.1) * 0.006;
+        if (performance.now() > checkAt) {
+          checkAt = performance.now() + 1500;
+          host.windows().then((list) => {
+            const w = list.find((x) => x.id === target.id);
+            if (!w || w.y - S.bubbleH - info.seat * k < S.workArea.y - 4) { phase = 'leave'; phaseT = 0; return; }
+            target = w;
+          }).catch(() => {});
+        }
+        // 視窗被搬動時慢慢跟著
+        const dest = seatPos(target);
+        const nx = S.pos.x + (dest.x - S.pos.x) * Math.min(1, dt * 6);
+        const ny = S.pos.y + (dest.y - S.pos.y) * Math.min(1, dt * 6);
+        if (Math.abs(nx - S.pos.x) > 0.3 || Math.abs(ny - S.pos.y) > 0.3) moveTo(nx, ny);
+        if (sitT > dur) { phase = 'leave'; phaseT = 0; }
+        return true;
+      }
+      // leave：飛回地面
+      view.sprite = Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1';
+      const dest = { x: S.pos.x + side * 40, y: groundY() };
+      dest.x = clamp(dest.x, S.workArea.x - cx() + S.size * 0.3, S.workArea.x + S.workArea.width - cx() - S.size * 0.3);
+      if (go(dest, dt, S.size * 1.0)) return false;
+      return phaseT < 12;
+    },
+    exit() { view.flip = false; },
+  };
+}
+
 // 落下：放開拖曳、或狀態要她回地面時
 function fallMode(after) {
   // 從拖曳接手時，把抓著時的位移慢慢收回來
@@ -455,21 +578,23 @@ function fallMode(after) {
   const startY = S.pos.y;
   let landed = -1;
   let dizzy = false;
+  const gentle = !!(mode && mode.name === 'perch'); // 從視窗邊緣下來：飄著落地，不會暈
   return {
     name: 'fall',
     ownsPosition: true,
     update(dt, t) {
       if (landed < 0) {
-        vy += 2600 * dt;
+        vy += (gentle ? 700 : 2600) * dt;
+        if (gentle) vy = Math.min(vy, S.size * 1.2);
         const ny = Math.min(S.pos.y + vy * dt, groundY());
         moveTo(S.pos.x, ny);
-        view.sprite = dragKind;
+        view.sprite = gentle ? 'fly1' : dragKind;
         view.dx = dx0 * Math.exp(-t * 9);
         view.dy = dy0 * Math.exp(-t * 9);
         view.rot = rot0 * Math.exp(-t * 6);
         if (ny >= groundY()) {
           landed = t;
-          dizzy = groundY() - startY > S.size * 2.2;
+          dizzy = !gentle && groundY() - startY > S.size * 2.2;
           if (dizzy) say('dizzy');
         }
         return true;
@@ -613,6 +738,7 @@ function onPointerMove(e) {
   if (solid && isHead(x, y)) detectStroke(x);
 }
 
+let clicks = [];
 function onPointerUp(e) {
   if (!drag.down) return;
   const wasDrag = drag.active;
@@ -627,7 +753,11 @@ function onPointerUp(e) {
     return;
   }
   if (performance.now() - d.t < 450) {
-    // 點一下：開心地跳一下
+    // 點一下：開心地跳一下；五秒內連點三次就害羞
+    const nowT = performance.now();
+    clicks = clicks.filter((c) => nowT - c < 5000);
+    clicks.push(nowT);
+    if (clicks.length >= 3) { clicks = []; hearts(3); setMode(poseMode('shy')); return; }
     hearts(2);
     setMode(poseMode('happy'));
   }
@@ -665,6 +795,7 @@ function patMode() {
       breathe(t, 0.01, 2.2);
       view.rot = Math.sin(t * 5) * 0.015;
       if (t - lastHeart > 0.9 && performance.now() - stroke.lastAt < 600) { hearts(1); lastHeart = t; }
+      if (t > 3.5 && performance.now() - stroke.lastAt < 1300) { freeQueue = () => poseMode('shy'); return false; } // 摸太久會害羞
       return performance.now() - stroke.lastAt < 1300;
     },
     exit() { stroke.flips = 0; },
@@ -694,7 +825,7 @@ function claudeState() {
 }
 
 const INTERACTIONS = new Set(['drag', 'fall', 'pat', 'happy']);
-const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit']);
+const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet']);
 
 function chooseFree() {
   const s = S.settings;
@@ -714,9 +845,11 @@ function chooseFree() {
     wave: 5,
     cheer: 4,
     pose: 8,
+    perch: s.perch && onGround() ? 5 : 0,
   });
   if (k === 'walk') return onGround() ? walkMode() : fallMode();
   if (k === 'fly') return flyMode();
+  if (k === 'perch') return perchMode();
   return onGround() ? poseMode(k) : fallMode();
 }
 
@@ -750,8 +883,8 @@ function tick(dt) {
   if (!alive) {
     if (mode && mode.name === 'nap') S.lastInteraction = performance.now();
     if (r.body !== 'free' && !busy) setMode(onGround() ? claudeMode(r.body) : fallMode());
+    else if (freeQueue && onGround()) { const q = freeQueue; freeQueue = null; setMode(q()); }
     else if (mode && mode.name === 'idle') setMode(chooseFree());
-    else if (freeQueue) { const q = freeQueue; freeQueue = null; setMode(q()); }
     else setMode(idleMode());
   }
   draw();
@@ -803,7 +936,7 @@ function placeBubble() {
   top = clamp(top, m, winH() - h - m);
   bubbleEl.style.left = `${Math.round(left)}px`;
   bubbleEl.style.top = `${Math.round(top)}px`;
-  bubbleEl.style.setProperty('--tail-x', `${Math.round(clamp(head.x - left, 12, w - 12))}px`);
+  bubbleEl.style.setProperty('--tail-x', `${Math.round(clamp(head.x - left, 34, w - 34))}px`);
   bubbleEl.classList.toggle('no-tail', top + h > head.y);
 }
 
@@ -853,7 +986,7 @@ async function start() {
   host.onAction((k) => {
     S.lastInteraction = performance.now();
     if (k === 'land') { refreshGeom(true).then(() => setMode(fallMode())); return; }
-    const make = k === 'walk' ? walkMode : k === 'fly' ? flyMode : k === 'sit' ? sitMode : k === 'nap' ? lieMode : k === 'wake' ? wakeMode : () => poseMode(k);
+    const make = k === 'walk' ? walkMode : k === 'fly' ? flyMode : k === 'sit' ? sitMode : k === 'nap' ? lieMode : k === 'wake' ? wakeMode : k === 'perch' ? () => perchMode({ manual: true }) : () => poseMode(k);
     if (k !== 'fly' && !onGround()) { setMode(fallMode(() => setMode(make()))); return; }
     setMode(make());
   });
@@ -889,6 +1022,13 @@ async function start() {
   }, { passive: false });
 
   setMode(idleMode(2));
+  // 開機招呼 + 跨時段招呼
+  let lastPeriod = periodOf();
+  freeQueue = () => greetMode();
+  setInterval(() => {
+    const p = periodOf();
+    if (p !== lastPeriod) { lastPeriod = p; if (!freeQueue) freeQueue = () => greetMode(p); }
+  }, 30000);
   requestAnimationFrame(loop);
 }
 

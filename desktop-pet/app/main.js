@@ -1,6 +1,7 @@
 'use strict';
 // 撫子桌寵：Electron 主程序
 // 負責：透明視窗、點擊穿透切換、拖曳、右鍵選單、設定保存、輪詢 Claude 狀態檔。
+const { spawn } = require('child_process');
 const { app, BrowserWindow, ipcMain, Menu, Tray, screen, shell, nativeImage, powerMonitor, globalShortcut } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -24,6 +25,7 @@ const DEFAULT_SETTINGS = {
   bubble: true,
   staminaAlways: false,
   voice: true,
+  perch: true,
   volume: 60,
   alwaysOnTop: true,
   hotkey: 'CommandOrControl+Alt+N',
@@ -144,6 +146,80 @@ function setSize(size) {
   broadcastSettings();
 }
 
+// ---------- 列出其他視窗的位置（坐在視窗邊緣用） ----------
+// 只在 Windows：用 PowerShell 呼叫 user32 EnumWindows，取得可見、沒最小化的一般視窗的邊框（由上而下＝由前而後）。
+// 其他系統回傳空陣列，她就不會去坐視窗。座標換算成 Electron 用的 DIP，結果快取 2 秒。
+const LIST_WINDOWS_PS = `
+Add-Type @"
+using System; using System.Runtime.InteropServices; using System.Text;
+public class NW {
+  delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc p, IntPtr l);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int size);
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int size);
+  struct RECT { public int L, T, R, B; }
+  public static string List(uint skip) {
+    SetProcessDPIAware();
+    var sb = new StringBuilder("["); bool first = true;
+    EnumWindows((h, l) => {
+      if (!IsWindowVisible(h) || IsIconic(h)) return true;
+      if ((GetWindowLong(h, -20) & 0x80) != 0) return true;
+      int cloaked; DwmGetWindowAttribute(h, 14, out cloaked, 4); if (cloaked != 0) return true;
+      uint pid; GetWindowThreadProcessId(h, out pid); if (pid == skip) return true;
+      var cn = new StringBuilder(64); GetClassName(h, cn, 64); string c = cn.ToString();
+      if (c == "Progman" || c == "WorkerW" || c == "Shell_TrayWnd" || c == "Shell_SecondaryTrayWnd") return true;
+      RECT r; if (DwmGetWindowAttribute(h, 9, out r, 16) != 0) return true;
+      int w = r.R - r.L, hh = r.B - r.T; if (w < 240 || hh < 120) return true;
+      if (!first) sb.Append(","); first = false;
+      sb.Append("{\\"id\\":" + h.ToInt64() + ",\\"x\\":" + r.L + ",\\"y\\":" + r.T + ",\\"w\\":" + w + ",\\"h\\":" + hh + "}");
+      return true;
+    }, IntPtr.Zero);
+    return sb.Append("]").ToString();
+  }
+}
+"@
+[NW]::List(__PID__)
+`;
+
+let windowsCache = { at: 0, list: [] };
+let windowsBusy = null;
+
+function listWindows() {
+  if (process.platform !== 'win32') return Promise.resolve([]);
+  if (Date.now() - windowsCache.at < 2000) return Promise.resolve(windowsCache.list);
+  if (windowsBusy) return windowsBusy;
+  windowsBusy = new Promise((resolve) => {
+    let out = '';
+    let done = false;
+    const finish = (list) => { if (done) return; done = true; windowsBusy = null; windowsCache = { at: Date.now(), list }; resolve(list); };
+    try {
+      const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '-'], { windowsHide: true });
+      const timer = setTimeout(() => { try { ps.kill(); } catch (_) { /* ignore */ } finish([]); }, 6000);
+      ps.stdout.on('data', (d) => { out += d; });
+      ps.on('error', () => finish([]));
+      ps.on('close', () => {
+        clearTimeout(timer);
+        try {
+          const raw = JSON.parse(out.trim().split(/\r?\n/).pop());
+          finish(raw.map((w) => {
+            const a = screen.screenToDipPoint({ x: w.x, y: w.y });
+            const b = screen.screenToDipPoint({ x: w.x + w.w, y: w.y + w.h });
+            return { id: w.id, x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+          }));
+        } catch (_) { finish([]); }
+      });
+      ps.stdin.end(LIST_WINDOWS_PS.replace('__PID__', String(process.pid)));
+    } catch (_) { finish([]); }
+  });
+  return windowsBusy;
+}
+
 // 語音台詞表 + 實際存在的音檔（沒有音檔就只出字，不會壞）
 function readVoice() {
   const dir = path.join(__dirname, 'voice');
@@ -247,7 +323,7 @@ const TEST_STATES = [
 const ACTIONS = [
   ['walk', '走一走'], ['fly', '飛一圈'], ['yawn', '打哈欠'], ['stretch', '伸懶腰'],
   ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '睡午覺'],
-  ['sit', '坐下休息'], ['wake', '睡醒爬起來'],
+  ['sit', '坐下休息'], ['perch', '坐到視窗邊緣'], ['shy', '害羞'], ['wake', '睡醒爬起來'],
 ];
 
 function menuTemplate() {
@@ -275,6 +351,7 @@ function menuTemplate() {
     { label: '隨機動作', type: 'checkbox', checked: settings.random, click: (i) => updateSetting('random', i.checked) },
     { label: '在螢幕下緣走動', type: 'checkbox', checked: settings.walk, click: (i) => updateSetting('walk', i.checked) },
     { label: '偶爾飛起來', type: 'checkbox', checked: settings.fly, click: (i) => updateSetting('fly', i.checked) },
+    { label: '偶爾坐到視窗邊緣', type: 'checkbox', checked: settings.perch, click: (i) => updateSetting('perch', i.checked) },
     { label: '語音', type: 'checkbox', checked: settings.voice, click: (i) => updateSetting('voice', i.checked) },
     {
       label: '音量',
@@ -346,6 +423,8 @@ function setupIPC() {
     voice: readVoice(),
     stateDir: bridge.stateDir(),
   }));
+
+  ipcMain.handle('pet:windows', () => listWindows());
 
   ipcMain.on('pet:set-ignore', (_e, ignore) => {
     if (pet) pet.setIgnoreMouseEvents(!!ignore, { forward: true });

@@ -44,9 +44,9 @@ SPRITES = {
     "fly2":       ("Qwen_image_2.1_00055.png", "box", 1.12),
     "walk1":      ("Qwen_image_2.1_00016.png", "auto", 1.06),
     "walk2":      ("Qwen_image_2.1_00017.png", "auto", 1.06),
-    "walk3":      ("Qwen_image_2.1_00018.png", "auto", 1.06),
-    "walk4":      ("Qwen_image_2.1_00019.png", "auto", 1.06),
-    "walk5":      ("9ec4f8ce-55ae-41de-89a6-1f7251bb80a7", "auto", 1.06),
+    "walk3":      ("Qwen_image_2.1_00018.png", "auto", 0.98),
+    "walk4":      ("Qwen_image_2.1_00019.png", "auto", 0.98),
+    "walk5":      ("9ec4f8ce-55ae-41de-89a6-1f7251bb80a7", "auto", 0.945),
     "pose":       ("1793e431-d033-4131-b125-5722b41a6ba5", "auto"),
     # --- v0.3：新動作（2026-10-21） ---
     "work2":      ("Qwen_image_2.1_00060.png", "front"),
@@ -62,6 +62,11 @@ SPRITES = {
     "drag2_b":    ("Qwen_image_2.1_00068-1.png", "boxh"),
     "confused":   ("Qwen_image_2.1_00072.png", "auto", 1.12),
     "confused_b": ("Qwen_image_2.1_00072-1.png", "auto", 1.12),
+    # --- v0.4：坐在邊緣、害羞 ---
+    "sit_edge":   ("Qwen_image_2.1_00076.png", "auto", 1.05),
+    "sit_edge_b": ("Qwen_image_2.1_00076-1.png", "auto", 1.05),
+    "shy":        ("Qwen_image_2.1_00077.png", "auto", 0.94),
+    "shy_b":      ("Qwen_image_2.1_00077-1.png", "auto", 0.94),
     "sit1":       ("Qwen_image_2.1_00061.png", "auto", 0.95),
     "sit1_b":     ("Qwen_image_2.1_00061-1.png", "auto", 0.95),
     "sit2":       ("Qwen_image_2.1_00063.png", "auto"),
@@ -169,8 +174,16 @@ def main():
         fn = f"{key}.png"
         out.save(os.path.join(args.out, fn), optimize=True)
         bx0, by0, bx1, by1 = out.getbbox()
+        entry_extra = {}
+        if key.startswith("sit_edge"):
+            # 坐點：裙襬最寬那一段的最後一列，視窗上緣要對到這一列
+            al = oa[:, :, 3] > 128
+            wid = al.sum(1)
+            rows = np.where(wid >= 0.75 * wid.max())[0]
+            entry_extra["seat"] = int(rows[-1])
         manifest["sprites"][key] = {
             "file": fn, "source": name, "bbox": [bx0, by0, bx1, by1],
+            **entry_extra,
             "head": [round(head_x(oa)) if mode == "boxh" else round(CENTER * scale) if mode not in ("box",) else round((bx0 + bx1) / 2), by0],
         }
         print(f"{key:9s} <- {name}  bbox={bx0,by0,bx1,by1}")

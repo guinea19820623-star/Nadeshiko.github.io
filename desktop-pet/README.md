@@ -1,4 +1,4 @@
-# 撫子桌寵 v0.3.3
+# 撫子桌寵 v0.4.0
 
 會在螢幕下緣走來走去、偶爾飛一圈、被摸頭會害羞的撫子。她跟 Claude Code 連動：你送出提示她就開始想，Claude 動手用工具她就抱著平板工作，回答完會歡呼；用量超過 85% 會累，5 小時額度用完會睡著，碰到週上限會暈倒。
 
@@ -7,6 +7,7 @@
 > 這張圖是在雲端容器裡用 Electron 實際跑出來的畫面截圖（透明背景疊在漸層上）。
 
 ### 更新紀錄
+- **v0.4.0（2026-10-21）** 新增：**坐到視窗邊緣**（76／76-1，Windows 限定：飛到別的視窗上緣坐著晃腳，視窗移動會跟著，關掉或搬走就飛回地面；右鍵可關、動作選單可手動觸發）、**害羞**（77／77-1：快速連點三下，或摸頭摸太久）、**依時段問候**（開機後與跨過早／午／下午／晚／深夜時各一句，文字加語音）、**對話泡泡換成橫向羊皮紙卷軸**。新增台詞 `perch`、`shy`、`greet_*` 共 21 句，**要重新執行 `node tools/generate-voices.js` 補音檔**（沒音檔只出字）。第八節「還缺的素材」已改寫，並列出身體比例需要修的編號。
 - **v0.3.3（2026-10-21）** 換上祐修正頭部比例的第二種坐姿（63／63-1），並拿掉我先前為了補償頭太小而加的放大，頭的大小跟站姿接近。
 - **v0.3.2（2026-10-21）**
   - **側睡不再飄起來**：側睡那張圖腳底下有一層零星的半透明殘影（約 110px），對齊地面時被當成腳底，人物實際浮在半空，點擊後才會「掉下去」。素材處理改成以不透明的實際底部對齊並清掉殘影（已驗證側睡時腳底貼地）。
@@ -209,7 +210,7 @@ node tools/simulate.js demo           自動輪播全部狀態（約 1 分鐘）
 
 ## 8. 還缺的素材與建議提示詞
 
-依重要性排序。**正面的圖請用 00027 當底圖做「圖片編輯」**（只改表情或手），這樣孵出來會跟現有的完美對齊，切換時身體不會抖（00028 就是這樣成功的）。
+**正面的圖請用 00027 當底圖做「圖片編輯」**（只改表情或手），這樣孵出來會跟現有的對齊，切換時身體不會抖。
 
 共用角色描述（貼在每個提示詞前面）：
 ```
@@ -218,16 +219,34 @@ amber eyes, white off-shoulder ruffled tiered dress with orange bow and gold bea
 full body, soft cel shading, clean lineart, transparent background, no shadow on ground
 ```
 
+### 已完成（~~劃掉~~）
+- ~~各表情閉眼版（思考、工作、疲憊、坐姿、拎起…）~~
+- ~~工作中第二張~~（60）、~~被拎起第二張~~（68）、~~出錯／困惑~~（72）
+- ~~坐姿、側睡、起床三段~~（63、62、62-2～62-4）
+- ~~坐在視窗邊緣~~（76）、~~害羞~~（77）、~~羊皮紙卷軸（面板與泡泡）~~
+
+### 還缺的（依重要性）
 1. **往左走的走路圖 4 張**（目前往左是鏡像，花飾會跑到另一邊）
-   `same character walking to the left, side view, [contact pose: legs apart, front heel down] / [passing pose: back foot lifted] ...` 各一張，跟現有 00016–00019 同一套姿勢的反方向。
-2. **真正換腳的走路圖 2 張**（讓走路更自然）
-   `side view walking to the right, LEFT leg forward stride` 與 `side view walking to the right, RIGHT leg forward stride`，兩張只差哪隻腳在前。
-3. **各表情的閉眼版**（讓思考、工作、疲憊也會眨眼）：以 00031、00032、00023 為底圖編輯 `keep everything identical, only close her eyes gently`。
-4. **工作中第二張**：以 00032 為底圖編輯 `same pose, looking up from the tablet at the viewer, small smile`，兩張交替就像邊打字邊抬頭。
-5. **被拎起第二張**：以 00059 為底圖編輯 `same pose, legs kicking, flustered expression, sweat drop`，拖曳時兩張交替。
-6. **出錯／困惑**：以 00027 為底圖編輯 `tilting head, question mark above head, confused expression, one finger on cheek`。
-7. **從暈倒爬起來**：`sitting up on the floor, rubbing head with one hand, dizzy swirl fading, embarrassed smile`。
-8. （進階）**坐在視窗邊緣**：`sitting with legs dangling, viewed from the front, hands on the edge`，之後可以做「坐在視窗頂端」。
+   `same character walking to the left, side view, contact pose / passing pose ...` 跟現有 00016–00019 同一套姿勢的反方向。
+2. **真正換腳的走路圖 2 張**
+   `side view walking to the right, LEFT leg forward stride` 與 `RIGHT leg forward stride`，兩張只差哪隻腳在前。
+3. **暈倒後爬起來的專用版**：`sitting up on the floor, rubbing head with one hand, dizzy swirl fading, embarrassed smile`（目前共用睡醒三張）。
+4. **視窗邊緣的變化**：`sitting on the top edge of a window, leaning forward to look down curiously` 或 `kicking legs happily`，現在只有一種。
+5. **（想做就做）右鍵選單的羊皮紙框**，等祐的素材。
+
+### 身體比例需要修的編號（基準：00027 站姿）
+量法：以頭上橙色花飾的直徑為尺（00027＝46px，統一畫布 660），再看「花飾到腳底」的比例。偏差超過 5% 的：
+
+| 編號 | 用途 | 偏差 | 建議 |
+|---|---|---|---|
+| 00054、00055 | 飛行 | 頭約小 15～17%（有透視縮短，可能是合理的） | 如果想要飛起來也是同樣的頭身比，請重孵；不介意就略過 |
+| 00023、00023-1 | 疲憊 | 頭約小 9% | 修頭部比例 |
+| 00035 | 伸懶腰 | 頭約小 7% | 修頭部比例（伸展姿勢有輕微縮短，影響不大） |
+| 00076、00076-1 | 坐視窗邊緣 | 頭偏小 | 畫面高度已用到極限（放大上限 1.05），請把頭放大一點或整體縮低 |
+
+我已經用縮放補正、不用你修的：00018、00019、walk5（走路原本偏大，已縮小）、00077（害羞，縮到 0.94）。
+
+**基準選 00027**：它是所有姿勢的底圖、眨眼與待機都用它，頭身比最接近設定的樣子；其他圖往它看齊。
 
 ## 9. 驗證狀況
 
@@ -250,7 +269,7 @@ full body, soft cel shading, clean lineart, transparent background, no shadow on
 - 音檔：`app/voice/<狀態>_<1~3>.mp3`（也認 `.ogg` / `.wav`）。檔名跟台詞表的順序對應，所以**改了台詞文字之後要重新生成該狀態**。
 - 播放：動作類（打哈欠、揮手、摸頭、拖曳…）進入動作時挑一句，字與聲音同步；Claude 狀態類（思考、工作、完成、疲憊…）在狀態切換時只出聲，字仍是即時資訊（工具名稱、剩餘體力、恢復時間）。
 - 不吵：同一狀態有冷卻（一般 4 秒；思考／工作 60 秒；疲憊／睡覺／暈倒 2 分鐘）；新的一句會蓋掉還沒唸完的舊句；關掉「語音」或音量 0 就完全靜音，字不受影響。
-- 載入：第一次要唸才讀檔，之後留在記憶體；63 句總共約 1~2 MB（mp3，單聲道 24kHz 48kbps，每句 1~3 秒、約 10~25 KB）。若沒有 ffmpeg 而保留 Breeze 的 wav，每句約 100~300 KB，總共十幾 MB，也還能用，但建議裝 ffmpeg 轉 mp3。
+- 載入：第一次要唸才讀檔，之後留在記憶體；全部台詞總共約 1~2 MB（mp3，單聲道 24kHz 48kbps，每句 1~3 秒、約 10~25 KB）。若沒有 ffmpeg 而保留 Breeze 的 wav，每句約 100~300 KB，總共十幾 MB，也還能用，但建議裝 ffmpeg 轉 mp3。
 
 ### 生成音檔（在你自己的電腦上）
 1. 先把 Breeze-TTS 服務開起來（預設 `http://127.0.0.1:8080`，聲音 `agent_girl`）。

@@ -1,5 +1,5 @@
 :root {
-  --ink: #5a3a2a;
+  --ink: #4a2d14;
   --paper: rgba(255, 250, 244, 0.94);
   --edge: rgba(240, 150, 70, 0.55);
   --bar-bg: rgba(90, 58, 42, 0.14);
@@ -24,12 +24,14 @@ html, body {
   left: 0;
   top: 4px;
   --tail-x: 50%;
+  --roll: 20px;
   max-width: calc(100vw - 8px);
-  padding: 4px 10px 5px;
-  border-radius: 12px;
-  background: var(--paper);
-  border: 1px solid var(--edge);
-  box-shadow: 0 2px 6px rgba(120, 70, 30, 0.18);
+  padding: 5px 2px 7px;
+  /* 橫向羊皮紙卷軸：左右兩端的卷軸保持原樣，中間紙面隨文字長度拉伸 */
+  border-style: solid;
+  border-width: 0 var(--roll);
+  border-image: url("../assets/bubble-scroll.png") 0 76 fill / 0 var(--roll) stretch;
+  filter: drop-shadow(0 2px 3px rgba(90, 50, 15, 0.32));
   color: var(--ink);
   font-size: 12px;
   line-height: 1.35;
@@ -39,18 +41,18 @@ html, body {
   transition: opacity .25s ease, transform .25s ease;
 }
 #bubble.hidden { opacity: 0; transform: translateY(4px); }
-/* 指向頭頂的小尾巴 */
+/* 指向頭頂的小尾巴（--tail-x 是相對整個泡泡左緣，扣掉卷軸的寬度） */
 #bubble::after {
   content: '';
   position: absolute;
-  left: var(--tail-x);
+  left: calc(var(--tail-x) - var(--roll));
   bottom: -5px;
   width: 8px;
   height: 8px;
   margin-left: -4px;
-  background: var(--paper);
-  border-right: 1px solid var(--edge);
-  border-bottom: 1px solid var(--edge);
+  background: #e9cf98;
+  border-right: 1px solid rgba(130, 80, 30, .55);
+  border-bottom: 1px solid rgba(130, 80, 30, .55);
   transform: rotate(45deg);
 }
 #bubble.no-tail::after { display: none; }

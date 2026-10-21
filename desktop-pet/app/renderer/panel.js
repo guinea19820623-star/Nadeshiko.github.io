@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 
 const TOGGLES = [
   ['random', '隨機動作'], ['walk', '在螢幕下緣走動'], ['fly', '偶爾飛起來'],
-  ['voice', '語音'], ['bubble', '頭上小字'], ['staminaAlways', '體力條常駐'], ['alwaysOnTop', '保持在最上層'],
+  ['voice', '語音'], ['perch', '坐到視窗邊緣'], ['bubble', '頭上小字'], ['staminaAlways', '體力條常駐'], ['alwaysOnTop', '保持在最上層'],
 ];
 const FORCE = [
   [null, '自動（跟 Claude 連動）'], ['free', '精神飽滿（隨機）'], ['thinking', '思考中'], ['working', '工作中'],
@@ -25,7 +25,7 @@ const SIM = [
 ];
 const ACTIONS = [
   ['walk', '走一走'], ['fly', '飛一圈'], ['yawn', '打哈欠'], ['stretch', '伸懶腰'],
-  ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '側睡'], ['sit', '坐下休息'], ['wake', '睡醒爬起來'], ['land', '回到地面'],
+  ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '側睡'], ['sit', '坐下休息'], ['perch', '坐到視窗邊緣'], ['shy', '害羞'], ['wake', '睡醒爬起來'], ['land', '回到地面'],
 ];
 
 let settings = {};

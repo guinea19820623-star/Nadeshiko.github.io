@@ -6,6 +6,7 @@ const on = (channel) => (cb) => ipcRenderer.on(channel, (_e, payload) => cb(payl
 contextBridge.exposeInMainWorld('petHost', {
   init: () => ipcRenderer.invoke('pet:init'),
   geom: () => ipcRenderer.invoke('pet:geom'),
+  windows: () => ipcRenderer.invoke('pet:windows'),
   setIgnore: (v) => ipcRenderer.send('pet:set-ignore', v),
   move: (x, y) => ipcRenderer.send('pet:move', x, y),
   dragStart: (gx, gy) => ipcRenderer.send('pet:drag-start', gx, gy),
