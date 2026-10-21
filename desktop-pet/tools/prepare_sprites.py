@@ -57,6 +57,7 @@ SPRITES = {
     "curious_b":  ("Qwen_image_2.1_00026-1.png", "front"),
     "curious2_b": ("Qwen_image_2.1_00036-1.png", "front"),
     "wave_b":     ("Qwen_image_2.1_00038-1.png", "front"),
+    "drag_b":     ("Qwen_image_2.1_00059-1.png", "auto", 1.04),
     "drag2":      ("Qwen_image_2.1_00068.png", "boxh"),
     "drag2_b":    ("Qwen_image_2.1_00068-1.png", "boxh"),
     "confused":   ("Qwen_image_2.1_00072.png", "auto", 1.12),

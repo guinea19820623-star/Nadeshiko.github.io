@@ -562,6 +562,20 @@
     34
    ]
   },
+  "drag_b": {
+   "file": "drag_b.png",
+   "source": "Qwen_image_2.1_00059-1.png",
+   "bbox": [
+    178,
+    21,
+    606,
+    649
+   ],
+   "head": [
+    330,
+    21
+   ]
+  },
   "drag2_b": {
    "file": "drag2_b.png",
    "source": "Qwen_image_2.1_00068-1.png",

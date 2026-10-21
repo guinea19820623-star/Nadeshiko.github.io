@@ -463,7 +463,7 @@ function fallMode(after) {
         vy += 2600 * dt;
         const ny = Math.min(S.pos.y + vy * dt, groundY());
         moveTo(S.pos.x, ny);
-        view.sprite = 'drag';
+        view.sprite = dragKind;
         view.dx = dx0 * Math.exp(-t * 9);
         view.dy = dy0 * Math.exp(-t * 9);
         view.rot = rot0 * Math.exp(-t * 6);
@@ -552,19 +552,21 @@ function claudeMode(body) {
 const drag = { down: null, active: false, grip: null, swing: 0, swingV: 0, vx: 0 };
 const stroke = { lastX: null, dir: 0, flips: 0, firstAt: 0, lastAt: 0 };
 
+// 拎起有兩種姿勢（抱起來的 drag、歪著身子的 drag2），每次拎起隨機挑一種，整段都用同一種，各自會眨眼
+let dragKind = 'drag';
 function dragMode() {
+  dragKind = S.manifest.sprites.drag2 && Math.random() < 0.5 ? 'drag2' : 'drag';
   return {
     name: 'drag',
     ownsPosition: true,
     enter() { say('drag', 1500); },
     update(dt, t) {
-      // 兩張交替，像在空中亂踢腳；第二張頭的位置不同，位移補回讓頭對著游標
-      const alt = Math.floor(t / 0.45) % 2 === 1;
-      view.sprite = alt ? eyes('drag2', t) : 'drag';
+      view.sprite = eyes(dragKind, t, 0.5);
       view.pivot = 'grip';
-      const a = S.manifest.sprites.drag;
-      const b = S.manifest.sprites.drag2;
-      if (alt && b) {
+      // 第二種姿勢頭的位置不同，位移補回讓頭對著游標
+      if (dragKind === 'drag2') {
+        const a = S.manifest.sprites.drag;
+        const b = S.manifest.sprites.drag2;
         const k = S.size / S.manifest.canvas;
         view.dx = (a.head[0] - b.head[0]) * k;
         view.dy = (a.head[1] - b.head[1]) * k;
@@ -884,6 +886,6 @@ async function start() {
 }
 
 // 給自動測試看的窗口
-window.__pet = { S, view, headPoint, get mode() { return mode && mode.name; }, setMode, idleMode, poseMode, walkMode, flyMode, fallMode, claudeState };
+window.__pet = { S, view, headPoint, get mode() { return mode && mode.name; }, setMode, dragMode, idleMode, poseMode, walkMode, flyMode, fallMode, claudeState };
 
 start();
