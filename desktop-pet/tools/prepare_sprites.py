@@ -95,6 +95,19 @@ def load(path):
     return im
 
 
+def trim_stray_bottom(im):
+    """腳底以下若有零星半透明殘影（側睡那張有 110px），對齊地面時會讓人物看起來飄起來。
+    以「有 4 個以上不透明像素的最後一列」當實際底部，其下超過 6px 的殘留一律清掉。"""
+    a = np.array(im)
+    alpha = a[:, :, 3]
+    rows = np.where((alpha > 128).sum(1) >= 4)[0]
+    ys = np.where((alpha > 0).any(1))[0]
+    if len(rows) and len(ys) and ys[-1] - rows[-1] > 6:
+        a[rows[-1] + 2:] = 0
+        return Image.fromarray(a, "RGBA")
+    return im
+
+
 def head_x(a):
     """外框上方 28% 的 alpha 重心 x，當作頭部中心。"""
     alpha = a[:, :, 3] > 0
@@ -133,6 +146,7 @@ def main():
         cache[path] = im
         if zoom != 1.0:
             im = im.convert("RGBa").resize((round(im.width * zoom), round(im.height * zoom)), Image.LANCZOS).convert("RGBA")
+        im = trim_stray_bottom(im)
         a = np.array(im)
         x0, y0, x1, y1 = im.getbbox()
         if mode == "front":

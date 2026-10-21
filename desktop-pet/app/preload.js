@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('petHost', {
   onAction: on('pet:action'),
   onDragMove: on('pet:drag-move'),
   onRecover: on('pet:recover'),
+  onSummon: on('pet:summon'),
 });
 
 contextBridge.exposeInMainWorld('panelHost', {

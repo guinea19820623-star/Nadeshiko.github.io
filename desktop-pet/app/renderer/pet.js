@@ -861,7 +861,14 @@ async function start() {
   host.onRecover(() => {
     drag.down = null; drag.active = false;
     S.ignoring = true; S.hover = false;
+    buildBitmaps().catch(() => {}); // 休眠後顯示資源可能失效，重建一次
     if (mode && mode.name === 'drag') { refreshGeom(true).then(() => setMode(fallMode())); }
+  });
+  // 喚醒快捷鍵／托盤圖示：躺著就爬起來，否則揮手打招呼
+  host.onSummon(() => {
+    S.lastInteraction = performance.now();
+    if (mode && mode.name === 'drag') return;
+    setMode(mode && mode.lying ? wakeMode() : (onGround() ? poseMode('wave') : fallMode()));
   });
   // 保險：滑鼠停在她身上時，每秒重新宣告一次「接住滑鼠」，萬一狀態不同步也會自己修好
   setInterval(() => { if (S.hover && !S.ignoring && !drag.active) host.setIgnore(false); }, 1000);

@@ -1,7 +1,7 @@
 'use strict';
 // 撫子桌寵：Electron 主程序
 // 負責：透明視窗、點擊穿透切換、拖曳、右鍵選單、設定保存、輪詢 Claude 狀態檔。
-const { app, BrowserWindow, ipcMain, Menu, Tray, screen, shell, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, screen, shell, nativeImage, powerMonitor, globalShortcut } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const bridge = require('./lib/bridge');
@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   voice: true,
   volume: 60,
   alwaysOnTop: true,
+  hotkey: 'CommandOrControl+Alt+N',
   tiredAt: 85,
   faintAt: 100,
   napAt: 100,
@@ -174,13 +175,50 @@ function applyOnTop() {
   }
 }
 
+// 視窗大小先差 1px 再改回來：實測螢幕休眠重啟後「拎不起來、重新調整尺寸就好」，
+// 調尺寸會讓系統重新建立視窗的邊界與命中範圍，所以這裡做同樣的動作（透明視窗，看不出來）
+function nudgeBounds() {
+  if (!pet || pet.isDestroyed()) return;
+  const b = pet.getBounds();
+  const { width, height } = winSize();
+  pet.setBounds({ x: b.x, y: b.y, width: width + 1, height });
+  pet.setBounds({ x: b.x, y: b.y, width, height });
+}
+
 function recoverPet() {
   if (!pet || pet.isDestroyed()) return;
   clearInterval(dragTimer);
   dragTimer = null;
+  nudgeBounds();
   pet.setIgnoreMouseEvents(true, { forward: true });
+  if (!pet.isVisible()) pet.showInactive();
   applyOnTop();
   send('pet:recover');
+}
+
+// 喚醒：重整視窗、頂到最上層、人物醒來（躺著就爬起來，否則揮手）；人物在螢幕外就帶回右下角
+function summonPet() {
+  if (!pet || pet.isDestroyed()) return;
+  const b = pet.getBounds();
+  const onScreen = screen.getAllDisplays().some((d) => {
+    const w = d.workArea;
+    return b.x + b.width / 2 >= w.x && b.x + b.width / 2 <= w.x + w.width && b.y + b.height / 2 >= w.y && b.y + b.height / 2 <= w.y + w.height;
+  });
+  if (!onScreen) resetPosition();
+  recoverPet();
+  pet.moveTop();
+  setTimeout(() => send('pet:summon'), 150);
+}
+
+function registerHotkey() {
+  globalShortcut.unregisterAll();
+  const key = settings.hotkey;
+  if (!key) return;
+  try {
+    if (!globalShortcut.register(key, summonPet)) console.error(`快捷鍵 ${key} 被別的程式佔用，改 settings.json 的 hotkey 換一組`);
+  } catch (e) {
+    console.error('hotkey', e.message);
+  }
 }
 
 // ---------- Claude 狀態檔輪詢 ----------
@@ -254,6 +292,7 @@ function menuTemplate() {
     },
     { type: 'separator' },
     { label: '控制面板與模擬器…', click: openPanel },
+    { label: `喚醒（${(settings.hotkey || '').replace('CommandOrControl', 'Ctrl')}）`, click: summonPet },
     { label: '回到螢幕右下角', click: resetPosition },
     { label: '打開狀態資料夾', click: () => { fs.mkdirSync(bridge.stateDir(), { recursive: true }); shell.openPath(bridge.stateDir()); } },
     { type: 'separator' },
@@ -329,6 +368,7 @@ function setupIPC() {
   // 拖曳在主程序跟游標，滑鼠甩出視窗也不會掉
   ipcMain.on('pet:drag-start', (_e, gx, gy) => {
     if (!pet) return;
+    nudgeBounds();
     clearInterval(dragTimer);
     let last = screen.getCursorScreenPoint();
     let lastT = Date.now();
@@ -388,7 +428,7 @@ function makeTray() {
     tray = new Tray(icon);
     tray.setToolTip('撫子');
     rebuildTray();
-    tray.on('click', () => send('pet:action', 'wave'));
+    tray.on('click', summonPet);
   } catch (e) {
     console.error('tray', e);
   }
@@ -397,7 +437,7 @@ function makeTray() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => send('pet:action', 'wave'));
+  app.on('second-instance', summonPet);
   app.whenReady().then(() => {
     loadSettings();
     bridge.pruneSessions();
@@ -407,6 +447,14 @@ if (!app.requestSingleInstanceLock()) {
     setInterval(pollSnapshot, 600);
     setInterval(() => { if (settings.alwaysOnTop && pet && !pet.isDestroyed() && pet.isVisible()) pet.moveTop(); }, 3000);
     if (process.argv.includes('--panel')) openPanel();
+    registerHotkey();
+    // 偵測系統睡眠或螢幕休眠：計時器突然隔了很久才跑，就當作剛喚醒
+    let lastBeat = Date.now();
+    setInterval(() => {
+      const n = Date.now();
+      if (n - lastBeat > 8000) setTimeout(recoverPet, 600);
+      lastBeat = n;
+    }, 2000);
     // 螢幕休眠／鎖定／換顯示器後，透明視窗的滑鼠穿透狀態可能跟畫面端不同步（能摸頭但拎不起來）
     // → 重設成「穿透＋轉發移動」，並通知畫面端清掉殘留的按住狀態
     for (const ev of ['resume', 'unlock-screen']) powerMonitor.on(ev, () => setTimeout(recoverPet, 800));
@@ -415,4 +463,5 @@ if (!app.requestSingleInstanceLock()) {
     screen.on('display-removed', () => setTimeout(recoverPet, 800));
   });
   app.on('window-all-closed', () => app.quit());
+  app.on('will-quit', () => globalShortcut.unregisterAll());
 }
