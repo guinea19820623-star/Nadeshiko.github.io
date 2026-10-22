@@ -230,28 +230,42 @@
    "file": "fly1.png",
    "source": "Qwen_image_2.1_00054.png",
    "bbox": [
-    64,
-    67,
-    596,
+    81,
+    84,
+    578,
     647
    ],
    "head": [
     330,
-    67
+    84
    ]
   },
   "fly2": {
    "file": "fly2.png",
    "source": "Qwen_image_2.1_00055.png",
    "bbox": [
-    80,
-    51,
-    581,
+    50,
+    165,
+    611,
     647
    ],
    "head": [
     330,
-    51
+    165
+   ]
+  },
+  "float": {
+   "file": "float.png",
+   "source": "Qwen_image_2.1_00078.png",
+   "bbox": [
+    115,
+    35,
+    544,
+    647
+   ],
+   "head": [
+    330,
+    35
    ]
   },
   "walk1": {
@@ -395,6 +409,36 @@
     23
    ]
   },
+  "sit_edge2": {
+   "file": "sit_edge2.png",
+   "source": "Qwen_image_2.1_00080.png",
+   "bbox": [
+    129,
+    36,
+    527,
+    648
+   ],
+   "seat": 486,
+   "head": [
+    330,
+    36
+   ]
+  },
+  "lie_top": {
+   "file": "lie_top.png",
+   "source": "Qwen_image_2.1_00083.png",
+   "bbox": [
+    29,
+    231,
+    630,
+    647
+   ],
+   "seat": 645,
+   "head": [
+    330,
+    231
+   ]
+  },
   "shy": {
    "file": "shy.png",
    "source": "Qwen_image_2.1_00077.png",
@@ -491,6 +535,34 @@
    "head": [
     330,
     80
+   ]
+  },
+  "fly1_b": {
+   "file": "fly1_b.png",
+   "source": "Qwen_image_2.1_00054-1.png",
+   "bbox": [
+    81,
+    84,
+    579,
+    647
+   ],
+   "head": [
+    330,
+    84
+   ]
+  },
+  "fly2_b": {
+   "file": "fly2_b.png",
+   "source": "Qwen_image_2.1_00055-1.png",
+   "bbox": [
+    48,
+    167,
+    612,
+    647
+   ],
+   "head": [
+    330,
+    167
    ]
   },
   "work2_b": {
@@ -646,6 +718,36 @@
    "head": [
     330,
     23
+   ]
+  },
+  "sit_edge2_b": {
+   "file": "sit_edge2_b.png",
+   "source": "Qwen_image_2.1_00080-1.png",
+   "bbox": [
+    129,
+    36,
+    527,
+    646
+   ],
+   "seat": 472,
+   "head": [
+    330,
+    36
+   ]
+  },
+  "lie_top_b": {
+   "file": "lie_top_b.png",
+   "source": "Qwen_image_2.1_00083-1.png",
+   "bbox": [
+    29,
+    231,
+    629,
+    646
+   ],
+   "seat": 644,
+   "head": [
+    329,
+    231
    ]
   },
   "shy_b": {

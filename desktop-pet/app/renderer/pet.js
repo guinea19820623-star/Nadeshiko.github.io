@@ -65,7 +65,7 @@ const onGround = () => Math.abs(S.pos.y - groundY()) < 2;
 
 // ---------- 語音 ----------
 const VOICE_DIR = '../voice/';
-const VOICE_COOLDOWN = { thinking: 60000, working: 60000, tired: 120000, exhausted: 120000, faint: 120000, nap: 30000, sit: 30000, perch: 30000, shy: 8000 };
+const VOICE_COOLDOWN = { thinking: 60000, working: 60000, tired: 120000, exhausted: 120000, faint: 120000, nap: 30000, sit: 30000, perch: 30000, perch_lie: 30000, drop: 20000, shy: 8000 };
 const audioCache = {};
 let nowPlaying = null;
 
@@ -457,7 +457,7 @@ function flyMode() {
       let ny = S.pos.y + vy * dt + Math.sin(t * 3) * 0.6;
       ny = Math.min(ny, groundY());
       moveTo(S.pos.x + vx * dt, ny);
-      view.sprite = Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1';
+      view.sprite = eyes(Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1', t, 0.2);
       if (Math.abs(vx) > 8) view.flip = vx < 0;
       view.rot = clamp(vy / speed, -1, 1) * 0.08 * (view.flip ? -1 : 1);
       view.dy = Math.sin(t * 2.4) * S.size * 0.015;
@@ -466,45 +466,76 @@ function flyMode() {
   };
 }
 
-// 坐到別的視窗上緣：飛過去 → 坐著晃腳（跟著視窗移動）→ 視窗不見或坐夠了就飛回地面。只有 Windows 能取得視窗位置。
+// 坐／趴到別的視窗上：飛過去 → 停著（視窗一動或消失就輕輕飄下來）→ 坐夠了飛回地面。只有 Windows 能取得視窗位置。
+// 三種停法：趴在視窗上緣（lie_top）、坐在視窗下緣（sit_edge／sit_edge2，頭在視窗前面，不怕頂到螢幕上方）、坐在上緣（sit_edge，上緣夠低才用）。
+const PERCH_KINDS = [
+  { kind: 'lie', sprites: ['lie_top'], edge: 'top', weight: 1.2, say: 'perch_lie' },
+  { kind: 'sit_bottom', sprites: ['sit_edge', 'sit_edge2'], edge: 'bottom', weight: 1.2, say: 'perch' },
+  { kind: 'sit_top', sprites: ['sit_edge'], edge: 'top', weight: 0.4, say: 'perch' },
+];
+
+function perchSeat(w, v) {
+  const k = S.size / S.manifest.canvas;
+  const info = S.manifest.sprites[v.sprite];
+  const edgeY = v.edge === 'bottom' ? w.y + w.h : w.y;
+  return { y: edgeY - S.bubbleH - info.seat * k, k, info };
+}
+
 async function pickPerch() {
   let res = { list: [], error: null };
   try { res = await host.windows(); } catch (e) { res = { list: [], error: String(e.message || e) }; }
   const wa = S.workArea;
-  const info = S.manifest.sprites.sit_edge;
-  const k = S.size / S.manifest.canvas;
-  const body = S.size * 0.62;
   const all = res.list || [];
-  const ok = all.filter((w) => w.w >= S.size * 0.55
-    && w.x < wa.x + wa.width && w.x + w.w > wa.x
-    && w.y - S.bubbleH - info.seat * k >= wa.y - 4 // 上緣要夠低，頭才不會出螢幕
-    && w.y < wa.y + wa.height - body);
+  const cands = [];
+  all.forEach((w, idx) => {
+    if (w.w < S.size * 0.55 || w.x >= wa.x + wa.width || w.x + w.w <= wa.x) return;
+    for (const kind of PERCH_KINDS) {
+      const sprite = kind.sprites.filter((n) => S.manifest.sprites[n])[Math.floor(Math.random() * kind.sprites.length)] || kind.sprites[0];
+      if (!S.manifest.sprites[sprite]) continue;
+      const v = { ...kind, sprite };
+      const { y, k } = perchSeat(w, v);
+      if (y + S.bubbleH + S.manifest.sprites[sprite].bbox[1] * k < wa.y - 4) continue; // 頭會頂出螢幕
+      if (y + S.bubbleH + S.manifest.ground * k > wa.y + wa.height + 6) continue; // 腳（或趴著的身體）會掉出螢幕
+      // 要停的那條邊被別的視窗蓋住就不去（清單由前到後）
+      const ex = w.x + w.w / 2;
+      const ey = v.edge === 'bottom' ? w.y + w.h - 3 : w.y + 3;
+      if (all.slice(0, idx).some((o) => ex > o.x + 4 && ex < o.x + o.w - 4 && ey > o.y + 4 && ey < o.y + o.h - 4)) continue;
+      cands.push({ w, v, weight: kind.weight * (idx < 3 ? 1.5 : 1) });
+    }
+  });
   let why = null;
-  if (!ok.length) {
+  if (!cands.length) {
     if (res.error) why = res.error;
     else if (!all.length) why = '沒有偵測到其他視窗（最小化或全螢幕的不算）';
-    else why = `偵測到 ${all.length} 個視窗，但上緣都太高或太窄，頭會頂出螢幕`;
+    else why = `偵測到 ${all.length} 個視窗，但都太窄、太高、太靠下緣，或邊緣被別的視窗蓋住`;
+    return { ok: null, why };
   }
-  return { ok, why };
+  let r = Math.random() * cands.reduce((t, c) => t + c.weight, 0);
+  let chosen = cands[0];
+  for (const c of cands) { if ((r -= c.weight) <= 0) { chosen = c; break; } }
+  return { ok: chosen, why: null };
 }
 
 function perchMode(opts = {}) {
-  const info = S.manifest.sprites.sit_edge;
-  const k = S.size / S.manifest.canvas;
   let phase = 'seek';
-  let target = null;
+  let target = null; // { w, v }
+  let snap = null;
   let phaseT = 0;
   let checkAt = 0;
   let vx = 0; let vy = 0;
-  let side = Math.random() < 0.5 ? -1 : 1;
+  let why = null;
+  const side = Math.random() < 0.5 ? -1 : 1;
   const dur = rand(40, 110);
   let sitT = 0;
   let seekPromise = null;
-  let why = null;
-  const seatPos = (w) => ({
-    x: clamp(w.x + w.w * (0.5 + side * 0.22), w.x + S.size * 0.3, w.x + w.w - S.size * 0.3) - cx(),
-    y: w.y - S.bubbleH - info.seat * k,
-  });
+  const seatPos = (w, v) => {
+    const frac = v.kind === 'lie' ? 0.5 : 0.5 + side * 0.22;
+    return {
+      x: clamp(w.x + w.w * frac, w.x + S.size * 0.3, w.x + w.w - S.size * 0.3) - cx(),
+      y: perchSeat(w, v).y,
+    };
+  };
+  const changed = (a, b) => Math.abs(a.x - b.x) > 4 || Math.abs(a.y - b.y) > 4 || Math.abs(a.w - b.w) > 4 || Math.abs(a.h - b.h) > 4;
   const go = (dest, dt, speed) => {
     const ex = dest.x - S.pos.x; const ey = dest.y - S.pos.y;
     const d = Math.hypot(ex, ey);
@@ -516,6 +547,13 @@ function perchMode(opts = {}) {
     if (Math.abs(vx) > 8) view.flip = vx < 0;
     return false;
   };
+  const refresh = () => host.windows().then((res) => {
+    const w = (res.list || []).find((x) => x.id === target.w.id);
+    if (!w) { phase = 'drop'; phaseT = 0; return; }
+    if (phase === 'fly') { target.w = w; return; } // 飛的途中視窗動了就改飛向新位置
+    if (phase === 'sit' && changed(w, snap)) { phase = 'drop'; phaseT = 0; return; }
+    target.w = w;
+  }).catch(() => {});
   return {
     name: 'perch',
     ownsPosition: true,
@@ -525,9 +563,10 @@ function perchMode(opts = {}) {
         view.sprite = 'idle';
         breathe(t);
         if (!seekPromise) {
-          seekPromise = pickPerch().then(({ ok: c, why: w }) => {
-            if (!c.length) { why = w; phase = 'none'; return; }
-            target = c[Math.floor(Math.random() * Math.min(c.length, 3))]; // 偏好最前面的幾個視窗
+          seekPromise = pickPerch().then(({ ok, why: w }) => {
+            if (!ok) { why = w; phase = 'none'; return; }
+            target = { w: ok.w, v: { ...ok.v } };
+            target.v.sprite = ok.v.sprite;
             phase = 'fly'; phaseT = 0;
           });
         }
@@ -539,35 +578,39 @@ function perchMode(opts = {}) {
         return false;
       }
       if (phase === 'fly') {
-        view.sprite = Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1';
+        view.sprite = eyes(Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1', t, 0.2);
         view.dy = Math.sin(t * 2.4) * S.size * 0.012;
-        const dest = seatPos(target);
-        if (go(dest, dt, S.size * 1.1)) { phase = 'sit'; phaseT = 0; view.flip = false; say('perch', 2600); }
-        return phaseT < 20;
+        if (performance.now() > checkAt) { checkAt = performance.now() + 1200; refresh(); }
+        const dest = seatPos(target.w, target.v);
+        if (go(dest, dt, S.size * 1.1) && phase === 'fly') {
+          phase = 'sit'; phaseT = 0; view.flip = false; snap = { ...target.w }; checkAt = performance.now() + 1000;
+          say(target.v.say, 2600);
+        }
+        return phaseT < 20 || phase !== 'fly';
       }
       if (phase === 'sit') {
         sitT += dt;
-        view.sprite = eyes('sit_edge', sitT, 0.8);
-        breathe(sitT, 0.006, 3.8);
-        view.rot = Math.sin(sitT * 1.1) * 0.006;
-        if (performance.now() > checkAt) {
-          checkAt = performance.now() + 1500;
-          host.windows().then((res) => {
-            const w = (res.list || []).find((x) => x.id === target.id);
-            if (!w || w.y - S.bubbleH - info.seat * k < S.workArea.y - 4) { phase = 'leave'; phaseT = 0; return; }
-            target = w;
-          }).catch(() => {});
-        }
-        // 視窗被搬動時慢慢跟著
-        const dest = seatPos(target);
-        const nx = S.pos.x + (dest.x - S.pos.x) * Math.min(1, dt * 6);
-        const ny = S.pos.y + (dest.y - S.pos.y) * Math.min(1, dt * 6);
-        if (Math.abs(nx - S.pos.x) > 0.3 || Math.abs(ny - S.pos.y) > 0.3) moveTo(nx, ny);
+        const base = target.v.sprite;
+        view.sprite = eyes(base, sitT, 0.8);
+        breathe(sitT, base === 'lie_top' ? 0.01 : 0.006, 3.8);
+        view.rot = base === 'lie_top' ? 0 : Math.sin(sitT * 1.1) * 0.006;
+        if (performance.now() > checkAt) { checkAt = performance.now() + 1200; refresh(); }
         if (sitT > dur) { phase = 'leave'; phaseT = 0; }
         return true;
       }
+      if (phase === 'drop') {
+        // 視窗動了或不見了：不黏過去，慢慢飄落到地面
+        if (phaseT < 0.05) { vy = 0; say('drop', 2200); }
+        view.sprite = 'float';
+        vy = Math.min(vy + S.size * 0.9 * dt, S.size * 0.55);
+        const ny = Math.min(S.pos.y + vy * dt, groundY());
+        moveTo(S.pos.x + Math.sin(phaseT * 1.6) * S.size * 0.1 * dt, ny);
+        view.rot = Math.sin(phaseT * 1.6) * 0.03;
+        if (ny >= groundY()) { view.rot = 0; return false; }
+        return phaseT < 20;
+      }
       // leave：飛回地面
-      view.sprite = Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1';
+      view.sprite = eyes(Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1', t, 0.2);
       const dest = { x: S.pos.x + side * 40, y: groundY() };
       dest.x = clamp(dest.x, S.workArea.x - cx() + S.size * 0.3, S.workArea.x + S.workArea.width - cx() - S.size * 0.3);
       if (go(dest, dt, S.size * 1.0)) return false;
@@ -597,7 +640,7 @@ function fallMode(after) {
         if (gentle) vy = Math.min(vy, S.size * 1.2);
         const ny = Math.min(S.pos.y + vy * dt, groundY());
         moveTo(S.pos.x, ny);
-        view.sprite = gentle ? 'fly1' : dragKind;
+        view.sprite = gentle ? 'float' : dragKind;
         view.dx = dx0 * Math.exp(-t * 9);
         view.dy = dy0 * Math.exp(-t * 9);
         view.rot = rot0 * Math.exp(-t * 6);
@@ -929,8 +972,18 @@ function updateBubble(r) {
   placeBubble();
 }
 
+let bubbleFitKey = '';
 // 泡泡放在頭頂正上方；碰到視窗或螢幕邊緣就往內閃，小尾巴仍指著頭
 function placeBubble() {
+  // 字體大小：設定的倍率；太長放不下視窗時自動縮小一點，避免被切掉
+  const want = clamp((S.settings.bubbleScale || 100) / 100, 0.7, 2.2);
+  const key = `${want}|${bubbleText.textContent}|${winW()}`;
+  if (key !== bubbleFitKey) {
+    bubbleFitKey = key;
+    bubbleEl.style.setProperty('--fs', want);
+    const over = bubbleEl.offsetWidth - (winW() - 8);
+    if (over > 0) bubbleEl.style.setProperty('--fs', Math.max(0.7, want * (winW() - 10) / bubbleEl.offsetWidth).toFixed(3));
+  }
   const w = bubbleEl.offsetWidth;
   const h = bubbleEl.offsetHeight;
   const head = headPoint();

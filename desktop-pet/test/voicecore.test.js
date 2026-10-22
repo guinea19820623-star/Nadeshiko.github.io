@@ -27,3 +27,17 @@ test('pickIndex：不連續重複，範圍正確', () => {
   }
   assert.strictEqual(v.pickIndex(1, 0), 0);
 });
+
+// 程式裡開口用到的每個台詞鍵，台詞表都要有（否則只出預設字、沒有聲音）
+test('pet.js 用到的 say 鍵都在台詞表裡', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'app', 'renderer', 'pet.js'), 'utf8');
+  const lines = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'app', 'voice', 'lines.json'), 'utf8'));
+  const keys = new Set();
+  for (const m of src.matchAll(/\bsay\('([a-z_]+)'/g)) keys.add(m[1]);
+  for (const m of src.matchAll(/say: '([a-z_]+)'/g)) keys.add(m[1]);
+  for (const m of src.matchAll(/`greet_\$\{/g)) for (const p of ['morning', 'noon', 'afternoon', 'evening', 'night']) keys.add(`greet_${p}`);
+  const missing = [...keys].filter((k) => !lines[k] && !['kind'].includes(k));
+  assert.deepEqual(missing, []);
+});

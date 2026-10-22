@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
   voice: true,
   perch: true,
   volume: 60,
+  bubbleScale: 100,
   alwaysOnTop: true,
   hotkey: 'CommandOrControl+Alt+N',
   tiredAt: 85,
@@ -49,6 +50,7 @@ function loadSettings() {
   const s = bridge.readJSON(settingsFile());
   if (s) settings = { ...DEFAULT_SETTINGS, ...s };
   settings.size = clampSize(settings.size);
+  settings.bubbleScale = Math.max(70, Math.min(220, Math.round(Number(settings.bubbleScale) || 100)));
 }
 
 function saveSettingsSoon() {
@@ -374,6 +376,12 @@ function menuTemplate() {
       })),
     },
     { label: '頭上小字', type: 'checkbox', checked: settings.bubble, click: (i) => updateSetting('bubble', i.checked) },
+    {
+      label: '頭上小字大小',
+      submenu: [['小', 80], ['標準', 100], ['大', 130], ['特大', 170], ['超大', 210]].map(([l, v]) => ({
+        label: `${l}（${v}%）`, type: 'radio', checked: Math.abs(settings.bubbleScale - v) < 15, click: () => updateSetting('bubbleScale', v),
+      })),
+    },
     { label: '體力條常駐', type: 'checkbox', checked: settings.staminaAlways, click: (i) => updateSetting('staminaAlways', i.checked) },
     { label: '保持在最上層', type: 'checkbox', checked: settings.alwaysOnTop, click: (i) => updateSetting('alwaysOnTop', i.checked) },
     {

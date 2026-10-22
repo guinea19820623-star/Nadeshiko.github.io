@@ -24,16 +24,17 @@ html, body {
   left: 0;
   top: 4px;
   --tail-x: 50%;
-  --roll: 20px;
+  --fs: 1;
+  --roll: calc(20px * (1 + (var(--fs) - 1) * 0.5));
   max-width: calc(100vw - 8px);
-  padding: 5px 2px 7px;
+  padding: calc(5px * var(--fs)) 2px calc(7px * var(--fs));
   /* 橫向羊皮紙卷軸：左右兩端的卷軸保持原樣，中間紙面隨文字長度拉伸 */
   border-style: solid;
   border-width: 0 var(--roll);
   border-image: url("../assets/bubble-scroll.png") 0 76 fill / 0 var(--roll) stretch;
   filter: drop-shadow(0 2px 3px rgba(90, 50, 15, 0.32));
   color: var(--ink);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   line-height: 1.35;
   white-space: nowrap;
   text-align: center;
@@ -71,7 +72,7 @@ html, body {
 #stamina { display: grid; gap: 2px; margin-top: 2px; min-width: 120px; }
 #stamina.hidden { display: none; }
 #bubble-text:empty + #stamina { margin-top: 0; }
-.bar { display: grid; grid-template-columns: 20px 1fr 32px; align-items: center; gap: 4px; font-size: 10px; }
+.bar { display: grid; grid-template-columns: 20px 1fr 32px; align-items: center; gap: 4px; font-size: calc(10px * var(--fs)); }
 .bar b { font-weight: 600; opacity: .75; }
 .bar i { display: block; height: 5px; border-radius: 3px; background: var(--bar-bg); overflow: hidden; }
 .bar s { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--ok); transition: width .4s ease; }

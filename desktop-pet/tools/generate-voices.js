@@ -6,6 +6,7 @@
 //   node tools/generate-voices.js --force         # 全部重新生成
 //   node tools/generate-voices.js --only pat,wave # 只生成指定狀態
 //   node tools/generate-voices.js --engine edge   # 改用 Edge TTS（需要 pip install edge-tts）
+//   node tools/generate-voices.js --check         # 檢查哪些台詞還沒有音檔
 //   node tools/generate-voices.js --list          # 只列出會生成哪些，不呼叫任何服務
 //
 // Breeze 選項：--url http://127.0.0.1:8080  --voice agent_girl  --model breeze-tts
@@ -18,11 +19,12 @@ const voice = require('../app/lib/voicecore');
 const DIR = path.join(__dirname, '..', 'app', 'voice');
 
 function parseArgs(argv) {
-  const o = { engine: 'breeze', url: 'http://127.0.0.1:8080', voice: null, model: 'breeze-tts', force: false, only: null, list: false };
+  const o = { engine: 'breeze', url: 'http://127.0.0.1:8080', voice: null, model: 'breeze-tts', force: false, only: null, list: false, check: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--force') o.force = true;
     else if (a === '--list') o.list = true;
+    else if (a === '--check') o.check = true;
     else if (a === '--engine') o.engine = argv[++i];
     else if (a === '--url') o.url = argv[++i];
     else if (a === '--voice') o.voice = argv[++i];
@@ -85,6 +87,12 @@ async function main() {
       const done = voice.EXTS.some((e) => existing.has(`${base}.${e}`));
       if (o.force || !done) jobs.push({ key, base, text: spoken(l), shown: l.text });
     });
+  }
+  if (o.check) {
+    console.log(jobs.length ? `缺音檔 ${jobs.length} 句：` : '所有台詞都有音檔。');
+    for (const j of jobs) console.log(`  ${j.base}  ${j.shown}`);
+    process.exitCode = jobs.length ? 1 : 0;
+    return;
   }
   console.log(`要生成 ${jobs.length} 句（引擎：${o.engine}，聲音：${o.voice}）`);
   if (o.list) { for (const j of jobs) console.log(`  ${j.base}  ${j.text}`); return; }
