@@ -45,6 +45,10 @@ SPRITES = {
     "fly2":       ("Qwen_image_2.1_00055.png", "box", 1.05),
     "fly2_b":     ("Qwen_image_2.1_00055-1.png", "box", 1.05),
     "float":      ("Qwen_image_2.1_00078.png", "box", 1.05),
+    "fly3":       ("Qwen_image_2.1_00053.png", "box", 1.02),
+    "fly3_b":     ("Qwen_image_2.1_00053-1.png", "box", 1.02),
+    # 髮與蕾絲裙飄逸版：跟 fly3 交替時不能跳，所以用髮飾的位置與大小對齊 fly3
+    "fly3_hair":  ("Qwen_image_2.1_00053-2.png", "flower:fly3"),
     "walk1":      ("Qwen_image_2.1_00016.png", "auto", 1.005),
     "walk2":      ("Qwen_image_2.1_00017.png", "auto", 1.038),
     "walk3":      ("Qwen_image_2.1_00018.png", "auto", 1.03),
@@ -66,8 +70,8 @@ SPRITES = {
     "confused":   ("Qwen_image_2.1_00072.png", "auto", 1.12),
     "confused_b": ("Qwen_image_2.1_00072-1.png", "auto", 1.12),
     # --- v0.4：坐在邊緣、害羞 ---
-    "sit_edge":   ("Qwen_image_2.1_00076.png", "auto", 1.05),
-    "sit_edge_b": ("Qwen_image_2.1_00076-1.png", "auto", 1.05),
+    "sit_edge":   ("Qwen_image_2.1_00076.png", "auto", 1.03),
+    "sit_edge_b": ("Qwen_image_2.1_00076-1.png", "auto", 1.03),
     "sit_edge2":  ("Qwen_image_2.1_00080.png", "auto"),
     "sit_edge2_b": ("Qwen_image_2.1_00080-1.png", "auto"),
     "lie_top":    ("Qwen_image_2.1_00083.png", "box", 1.2),
@@ -105,6 +109,21 @@ def load(path):
         s = 1024 / im.width
         im = im.convert("RGBa").resize((round(im.width * s), round(im.height * s)), Image.LANCZOS).convert("RGBA")
     return im
+
+
+def flower_stats(im):
+    """頭上橙色花飾（最大的一團橙色）的中心與直徑，用來讓同一姿勢的兩張圖對齊。"""
+    from scipy import ndimage
+    a = np.array(im).astype(int)
+    r, g, b, al = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+    m = (al > 200) & (r > 215) & (g > 80) & (g < 165) & (b < 90) & (r - b > 140)
+    lab, n = ndimage.label(m)
+    if n == 0:
+        return None
+    sz = ndimage.sum(m, lab, range(1, n + 1))
+    i = int(np.argmax(sz)) + 1
+    ys, xs = np.where(lab == i)
+    return float(xs.mean()), float(ys.mean()), float(np.sqrt(4 * sz[i - 1] / np.pi))
 
 
 def trim_stray_bottom(im):
@@ -145,7 +164,8 @@ def main():
     missing = []
     cache = {}
     # 先算 front 基準；閉眼版（_b）排在原圖後面，共用原圖的位移，眨眼時才不會跳
-    order = sorted(SPRITES, key=lambda k: (k != FRONT_REF, k.endswith('_b')))
+    order = sorted(SPRITES, key=lambda k: (k != FRONT_REF, SPRITES[k][1].startswith('flower:'), k.endswith('_b')))
+    flowers = {}
     offsets = {}
     for key in order:
         name, mode, *extra = SPRITES[key]
@@ -156,6 +176,12 @@ def main():
             continue
         im = cache.get(path) or load(path)
         cache[path] = im
+        if mode.startswith("flower:"):
+            ref = mode.split(":")[1]
+            if ref not in flowers:
+                missing.append((key, name)); continue
+            own = flower_stats(im)
+            zoom = flowers[ref][2] / own[2]
         if zoom != 1.0:
             im = im.convert("RGBa").resize((round(im.width * zoom), round(im.height * zoom)), Image.LANCZOS).convert("RGBA")
         im = trim_stray_bottom(im)
@@ -167,11 +193,18 @@ def main():
             dx, dy = front_offset
         elif mode == "auto":
             dx, dy = CENTER - head_x(a), GROUND - y1
+        elif mode.startswith("flower:"):
+            fs = flower_stats(im)
+            ref = flowers[mode.split(":")[1]]
+            dx, dy = ref[0] - fs[0], ref[1] - fs[1]
         else:  # box / boxh
             dx, dy = CENTER - (x0 + x1) / 2, GROUND - y1
         if key.endswith("_b") and key[:-2] in offsets:
             dx, dy = offsets[key[:-2]]
         offsets[key] = (dx, dy)
+        fs0 = flower_stats(im)
+        if fs0 and not key.endswith("_b"):
+            flowers[key] = (fs0[0] + dx, fs0[1] + dy, fs0[2])
         canvas = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
         canvas.alpha_composite(im, (round(dx), round(dy)))
         out = canvas.convert("RGBa").resize((args.size, args.size), Image.LANCZOS).convert("RGBA")

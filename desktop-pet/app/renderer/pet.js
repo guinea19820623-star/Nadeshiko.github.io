@@ -435,7 +435,7 @@ function flyMode() {
   let i = 0;
   const speed = S.size * 0.85;
   let vx = 0; let vy = 0;
-  const kind = Math.random() < 0.5 ? 'fly1' : 'fly2'; // 一趟只用一種姿勢（各自會眨眼），不再兩張輪流
+  const kind = pickFly(); // 一趟只用一種姿勢（各自會眨眼），不再兩張輪流
   return {
     name: 'fly',
     ownsPosition: true,
@@ -458,13 +458,20 @@ function flyMode() {
       let ny = S.pos.y + vy * dt + Math.sin(t * 3) * 0.6;
       ny = Math.min(ny, groundY());
       moveTo(S.pos.x + vx * dt, ny);
-      view.sprite = eyes(kind, t, 0.2);
+      view.sprite = flySprite(kind, t);
       if (Math.abs(vx) > 8) view.flip = vx < 0;
       view.rot = clamp(vy / speed, -1, 1) * 0.08 * (view.flip ? -1 : 1);
       view.dy = Math.sin(t * 2.4) * S.size * 0.015;
       return t < 40;
     },
   };
+}
+
+// 飛行姿勢：fly3 另有頭髮與蕾絲裙飄逸版，約每 0.5 秒與本體交替（兩張已依髮飾對齊）
+function pickFly() { return ['fly1', 'fly2', 'fly3'][Math.floor(Math.random() * 3)]; }
+function flySprite(kind, t) {
+  if (kind === 'fly3' && S.manifest.sprites.fly3_hair && Math.floor(t / 0.5) % 2 === 1) return 'fly3_hair';
+  return eyes(kind, t, 0.2);
 }
 
 // 坐／趴到別的視窗上：飛過去 → 停著（視窗一動或消失就輕輕飄下來）→ 坐夠了飛回地面。只有 Windows 能取得視窗位置。
@@ -526,7 +533,7 @@ function perchMode(opts = {}) {
   let vx = 0; let vy = 0;
   let why = null;
   const side = Math.random() < 0.5 ? -1 : 1;
-  const flyKind = Math.random() < 0.5 ? 'fly1' : 'fly2';
+  const flyKind = pickFly();
   const dur = rand(40, 110);
   let sitT = 0;
   let seekPromise = null;
@@ -580,7 +587,7 @@ function perchMode(opts = {}) {
         return false;
       }
       if (phase === 'fly') {
-        view.sprite = eyes(flyKind, t, 0.2);
+        view.sprite = flySprite(flyKind, t);
         view.dy = Math.sin(t * 2.4) * S.size * 0.012;
         if (performance.now() > checkAt) { checkAt = performance.now() + 1200; refresh(); }
         const dest = seatPos(target.w, target.v);
@@ -612,7 +619,7 @@ function perchMode(opts = {}) {
         return phaseT < 20;
       }
       // leave：飛回地面
-      view.sprite = eyes(flyKind, t, 0.2);
+      view.sprite = flySprite(flyKind, t);
       const dest = { x: S.pos.x + side * 40, y: groundY() };
       dest.x = clamp(dest.x, S.workArea.x - cx() + S.size * 0.3, S.workArea.x + S.workArea.width - cx() - S.size * 0.3);
       if (go(dest, dt, S.size * 1.0)) return false;

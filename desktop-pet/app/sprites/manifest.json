@@ -268,6 +268,20 @@
     35
    ]
   },
+  "fly3": {
+   "file": "fly3.png",
+   "source": "Qwen_image_2.1_00053.png",
+   "bbox": [
+    21,
+    44,
+    638,
+    648
+   ],
+   "head": [
+    330,
+    44
+   ]
+  },
   "walk1": {
    "file": "walk1.png",
    "source": "Qwen_image_2.1_00016.png",
@@ -398,15 +412,15 @@
    "file": "sit_edge.png",
    "source": "Qwen_image_2.1_00076.png",
    "bbox": [
-    149,
-    23,
+    122,
+    15,
     533,
-    647
+    648
    ],
-   "seat": 464,
+   "seat": 470,
    "head": [
     330,
-    23
+    15
    ]
   },
   "sit_edge2": {
@@ -565,6 +579,20 @@
     167
    ]
   },
+  "fly3_b": {
+   "file": "fly3_b.png",
+   "source": "Qwen_image_2.1_00053-1.png",
+   "bbox": [
+    21,
+    44,
+    638,
+    648
+   ],
+   "head": [
+    330,
+    44
+   ]
+  },
   "work2_b": {
    "file": "work2_b.png",
    "source": "Qwen_image_2.1_00060-1.png",
@@ -709,15 +737,15 @@
    "file": "sit_edge_b.png",
    "source": "Qwen_image_2.1_00076-1.png",
    "bbox": [
-    149,
-    23,
-    534,
-    646
+    122,
+    17,
+    533,
+    648
    ],
-   "seat": 464,
+   "seat": 481,
    "head": [
     330,
-    23
+    17
    ]
   },
   "sit_edge2_b": {
@@ -818,6 +846,20 @@
    "head": [
     330,
     80
+   ]
+  },
+  "fly3_hair": {
+   "file": "fly3_hair.png",
+   "source": "Qwen_image_2.1_00053-2.png",
+   "bbox": [
+    29,
+    60,
+    636,
+    659
+   ],
+   "head": [
+    330,
+    60
    ]
   }
  }
