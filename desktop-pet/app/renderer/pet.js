@@ -544,7 +544,10 @@ function perchMode(opts = {}) {
       y: perchSeat(w, v).y,
     };
   };
-  const changed = (a, b) => Math.abs(a.x - b.x) > 4 || Math.abs(a.y - b.y) > 4 || Math.abs(a.w - b.w) > 4 || Math.abs(a.h - b.h) > 4;
+  const sens = Math.max(1, Math.min(5, Number(S.settings.dropSens) || 3));
+  const px = [20, 10, 4, 2, 1][sens - 1]; // 視窗動多少像素算動了
+  const checkEvery = [3000, 2000, 1200, 700, 400][sens - 1]; // 多久查一次視窗位置（毫秒）
+  const changed = (a, b) => Math.abs(a.x - b.x) > px || Math.abs(a.y - b.y) > px || Math.abs(a.w - b.w) > px || Math.abs(a.h - b.h) > px;
   const go = (dest, dt, speed) => {
     const ex = dest.x - S.pos.x; const ey = dest.y - S.pos.y;
     const d = Math.hypot(ex, ey);
@@ -589,7 +592,7 @@ function perchMode(opts = {}) {
       if (phase === 'fly') {
         view.sprite = flySprite(flyKind, t);
         view.dy = Math.sin(t * 2.4) * S.size * 0.012;
-        if (performance.now() > checkAt) { checkAt = performance.now() + 1200; refresh(); }
+        if (performance.now() > checkAt) { checkAt = performance.now() + checkEvery; refresh(); }
         const dest = seatPos(target.w, target.v);
         if (go(dest, dt, S.size * 1.1) && phase === 'fly') {
           phase = 'sit'; phaseT = 0; view.flip = false; snap = { ...target.w }; checkAt = performance.now() + 1000;
@@ -603,7 +606,7 @@ function perchMode(opts = {}) {
         view.sprite = eyes(base, sitT, 0.8);
         breathe(sitT, base === 'lie_top' ? 0.01 : 0.006, 3.8);
         view.rot = base === 'lie_top' ? 0 : Math.sin(sitT * 1.1) * 0.006;
-        if (performance.now() > checkAt) { checkAt = performance.now() + 1200; refresh(); }
+        if (performance.now() > checkAt) { checkAt = performance.now() + checkEvery; refresh(); }
         if (sitT > dur) { phase = 'leave'; phaseT = 0; }
         return true;
       }

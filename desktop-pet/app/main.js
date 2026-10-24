@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS = {
   perch: true,
   volume: 60,
   bubbleScale: 100,
+  dropSens: 3,
   alwaysOnTop: true,
   hotkey: 'CommandOrControl+Alt+N',
   tiredAt: 85,
@@ -50,6 +51,7 @@ function loadSettings() {
   const s = bridge.readJSON(settingsFile());
   if (s) settings = { ...DEFAULT_SETTINGS, ...s };
   settings.size = clampSize(settings.size);
+  settings.dropSens = Math.max(1, Math.min(5, Math.round(Number(settings.dropSens) || 3)));
   settings.bubbleScale = Math.max(70, Math.min(220, Math.round(Number(settings.bubbleScale) || 100)));
 }
 
