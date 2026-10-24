@@ -272,70 +272,70 @@
    "file": "walk1.png",
    "source": "Qwen_image_2.1_00016.png",
    "bbox": [
-    81,
-    10,
-    432,
+    93,
+    43,
+    427,
     648
    ],
    "head": [
     330,
-    10
+    43
    ]
   },
   "walk2": {
    "file": "walk2.png",
    "source": "Qwen_image_2.1_00017.png",
    "bbox": [
-    92,
-    29,
-    434,
+    97,
+    42,
+    432,
     647
    ],
    "head": [
     330,
-    29
+    42
    ]
   },
   "walk3": {
    "file": "walk3.png",
    "source": "Qwen_image_2.1_00018.png",
    "bbox": [
-    82,
-    71,
-    456,
+    69,
+    41,
+    462,
     647
    ],
    "head": [
     330,
-    71
+    41
    ]
   },
   "walk4": {
    "file": "walk4.png",
    "source": "Qwen_image_2.1_00019.png",
    "bbox": [
-    76,
-    75,
-    498,
-    647
+    64,
+    47,
+    507,
+    648
    ],
    "head": [
     330,
-    75
+    47
    ]
   },
   "walk5": {
    "file": "walk5.png",
    "source": "9ec4f8ce-55ae-41de-89a6-1f7251bb80a7",
    "bbox": [
-    51,
-    95,
-    507,
+    25,
+    43,
+    524,
     647
    ],
    "head": [
     330,
-    95
+    43
    ]
   },
   "pose": {

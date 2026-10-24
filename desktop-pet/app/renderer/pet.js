@@ -435,6 +435,7 @@ function flyMode() {
   let i = 0;
   const speed = S.size * 0.85;
   let vx = 0; let vy = 0;
+  const kind = Math.random() < 0.5 ? 'fly1' : 'fly2'; // 一趟只用一種姿勢（各自會眨眼），不再兩張輪流
   return {
     name: 'fly',
     ownsPosition: true,
@@ -457,7 +458,7 @@ function flyMode() {
       let ny = S.pos.y + vy * dt + Math.sin(t * 3) * 0.6;
       ny = Math.min(ny, groundY());
       moveTo(S.pos.x + vx * dt, ny);
-      view.sprite = eyes(Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1', t, 0.2);
+      view.sprite = eyes(kind, t, 0.2);
       if (Math.abs(vx) > 8) view.flip = vx < 0;
       view.rot = clamp(vy / speed, -1, 1) * 0.08 * (view.flip ? -1 : 1);
       view.dy = Math.sin(t * 2.4) * S.size * 0.015;
@@ -525,6 +526,7 @@ function perchMode(opts = {}) {
   let vx = 0; let vy = 0;
   let why = null;
   const side = Math.random() < 0.5 ? -1 : 1;
+  const flyKind = Math.random() < 0.5 ? 'fly1' : 'fly2';
   const dur = rand(40, 110);
   let sitT = 0;
   let seekPromise = null;
@@ -578,7 +580,7 @@ function perchMode(opts = {}) {
         return false;
       }
       if (phase === 'fly') {
-        view.sprite = eyes(Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1', t, 0.2);
+        view.sprite = eyes(flyKind, t, 0.2);
         view.dy = Math.sin(t * 2.4) * S.size * 0.012;
         if (performance.now() > checkAt) { checkAt = performance.now() + 1200; refresh(); }
         const dest = seatPos(target.w, target.v);
@@ -610,7 +612,7 @@ function perchMode(opts = {}) {
         return phaseT < 20;
       }
       // leave：飛回地面
-      view.sprite = eyes(Math.floor(t * 4.5) % 2 ? 'fly2' : 'fly1', t, 0.2);
+      view.sprite = eyes(flyKind, t, 0.2);
       const dest = { x: S.pos.x + side * 40, y: groundY() };
       dest.x = clamp(dest.x, S.workArea.x - cx() + S.size * 0.3, S.workArea.x + S.workArea.width - cx() - S.size * 0.3);
       if (go(dest, dt, S.size * 1.0)) return false;
