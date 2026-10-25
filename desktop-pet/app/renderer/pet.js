@@ -235,7 +235,7 @@ let modeT = 0;
 
 function setMode(m) {
   // 躺著（睡覺、暈倒）要換成別的動作時，先慢慢爬起來；被拎起則直接抓走
-  if (mode && mode.lying && !m.lying && m.name !== 'drag' && m.name !== 'wake') m = wakeMode();
+  if (mode && mode.lying && !m.lying && m.name !== 'drag' && m.name !== 'wake') m = wakeMode(mode.body);
   if (mode && mode.exit) mode.exit();
   mode = m;
   modeT = 0;
@@ -370,8 +370,11 @@ function lieMode() {
 }
 
 // 睡醒／暈倒後爬起來：躺著撐起 → 坐起揉眼睛 → 準備站起，然後接回站立
-function wakeMode() {
-  const seq = [['wake1', 1.5], ['wake2', 1.7], ['wake3', 1.3]];
+// from='faint'：暈倒爬起來走另一條路（躺著揉眼 → 坐著揉眼 → 跪坐摸頭髮），側睡醒來走 wake1→3
+function wakeMode(from) {
+  const seq = from === 'faint'
+    ? [['faint2', 1.8], ['faint3', 1.9], ['wake3', 1.3]]
+    : [['wake1', 1.5], ['wake2', 1.7], ['wake3', 1.3]];
   const total = seq.reduce((a, [, d]) => a + d, 0);
   return {
     name: 'wake',
@@ -379,7 +382,7 @@ function wakeMode() {
     update(dt, t) {
       let acc = 0;
       for (const [k, d] of seq) {
-        if (t < acc + d) { view.sprite = k === 'wake1' ? k : eyes(k, t, 0.3); break; }
+        if (t < acc + d) { view.sprite = (k === 'wake1' || k === 'faint2' || k === 'faint3') ? k : eyes(k, t, 0.3); break; }
         acc += d;
       }
       breathe(t, 0.008, 2.6);
@@ -1075,7 +1078,7 @@ async function start() {
   host.onSummon(() => {
     S.lastInteraction = performance.now();
     if (mode && mode.name === 'drag') return;
-    setMode(mode && mode.lying ? wakeMode() : (onGround() ? poseMode('wave') : fallMode()));
+    setMode(mode && mode.lying ? wakeMode(mode.body) : (onGround() ? poseMode('wave') : fallMode()));
   });
   // 保險：滑鼠停在她身上時，每秒重新宣告一次「接住滑鼠」，萬一狀態不同步也會自己修好
   setInterval(() => { if (S.hover && !S.ignoring && !drag.active) host.setIgnore(false); }, 1000);

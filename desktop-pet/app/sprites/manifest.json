@@ -212,6 +212,20 @@
     92
    ]
   },
+  "faint3": {
+   "file": "faint3.png",
+   "source": "Qwen_image_2.1_00024-3.png",
+   "bbox": [
+    75,
+    110,
+    649,
+    647
+   ],
+   "head": [
+    330,
+    110
+   ]
+  },
   "drag": {
    "file": "drag.png",
    "source": "Qwen_image_2.1_00059.png",
@@ -846,6 +860,20 @@
    "head": [
     330,
     80
+   ]
+  },
+  "faint2": {
+   "file": "faint2.png",
+   "source": "Qwen_image_2.1_00024-2.png",
+   "bbox": [
+    29,
+    126,
+    631,
+    650
+   ],
+   "head": [
+    330,
+    126
    ]
   },
   "fly3_hair": {
