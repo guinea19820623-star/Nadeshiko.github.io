@@ -230,17 +230,27 @@ full body, soft cel shading, clean lineart, transparent background, no shadow on
 - ~~各表情閉眼版（思考、工作、疲憊、坐姿、拎起…）~~
 - ~~工作中第二張~~（60）、~~被拎起第二張~~（68）、~~出錯／困惑~~（72）
 - ~~坐姿、側睡、起床三段~~（63、62、62-2～62-4）
-- ~~坐在視窗邊緣~~（76、80）、~~趴在視窗上~~（83）、~~害羞~~（77）、~~羊皮紙卷軸（面板與泡泡）~~
-- ~~新飛行兩種~~（54、55）、~~優雅緩降~~（78）
+- ~~坐在視窗邊緣~~（76、80，76 已由祐重做）、~~趴在視窗上~~（83）、~~害羞~~（77）、~~羊皮紙卷軸（面板與泡泡）~~
+- ~~新飛行三種~~（53、54、55）、~~飛行頭髮裙子飄逸版~~（53-2）、~~優雅緩降~~（78）
+- ~~暈倒後爬起來的專用版~~（24-2、24-3、24-3-1，接 62-4）、~~起身途中眨眼~~
 
 ### 還缺的（依重要性）
-1. **往左走的走路圖 4 張**（目前往左是鏡像，花飾會跑到另一邊）
+1. **54、55 的頭髮裙子飄逸版**（比照 53-2，與本體交替就會有飄動感；程式已支援，只差圖）
+   用 54／55 當底圖做圖片編輯：`same pose, same face, same position and size, only the long hair and the lace skirt are blown further back by the wind, hair strands and skirt layers slightly different from the base image`。**姿勢、臉、手腳都不要動，只動髮絲與裙襬**，我會用頭上橘花自動對齊位置和大小。
+2. **往左走的走路圖 4 張**（目前往左是鏡像，花飾會跑到另一邊）
    `same character walking to the left, side view, contact pose / passing pose ...` 跟現有 00016–00019 同一套姿勢的反方向。
-2. **真正換腳的走路圖 2 張**
-   `side view walking to the right, LEFT leg forward stride` 與 `RIGHT leg forward stride`，兩張只差哪隻腳在前。
-3. **暈倒後爬起來的專用版**：`sitting up on the floor, rubbing head with one hand, dizzy swirl fading, embarrassed smile`（目前共用睡醒三張）。
-4. **視窗停靠的變化**：`sitting on the bottom edge of a window, leaning back with hands behind, kicking legs happily`、`lying on stomach on a window top, chin on hands, legs swinging in the air`。
-5. **（想做就做）右鍵選單的羊皮紙框**，等祐的素材。
+3. **真正換腳的走路圖 2 張**
+   `side view walking to the right, LEFT leg forward stride` 與 `RIGHT leg forward stride`，兩張只差哪隻腳在前。腿部關節彎曲容易糊，可以先用更簡單的動作測。
+4. **待機飄動版**（新想法）：站姿 00027 的「微風版」，`same pose and face, only hair and skirt hem swayed slightly by a gentle breeze`，跟本體每隔幾秒交替，站著不動也有生命感。
+5. **視窗停靠的第二格**（新想法）：坐在視窗邊緣（76、80）的「晃腳版」`same pose, lower legs swung forward / backward`，與本體交替就是晃腿；趴在視窗上（83）的「小腿擺動版」`same pose, lower legs kicked up in the air`。
+6. **24-2 的閉眼版**（躺著揉眼的那張，目前這段不眨眼）。
+7. **起飛前的蹲、落地的緩衝**（想做才做）：`crouching slightly, knees bent, about to jump`，讓起飛與落地不只靠程式壓扁回彈。
+8. **（想做就做）右鍵選單的羊皮紙框**，等祐的素材。
+
+### 做圖小建議（新）
+- 同一姿勢的兩格（本體＋飄動版）一定要用本體當底圖、鎖住姿勢與臉，只改頭髮與裙襬；不同姿勢才重新孵。
+- 閉眼版也是同一招：用睜眼圖做編輯，只把眼睛改成閉上，我用本體的位置去對齊，不用自己對。
+- 圖放到 uploads 後告訴我編號就好，位置、大小、腳底與閉眼對應我會處理。
 
 ### 身體比例需要修的編號（基準：00027 站姿）
 量法：以頭上橙色花飾的直徑為尺（00027＝46px，統一畫布 660），再看「花飾到腳底」的比例。偏差超過 5% 的：
@@ -249,11 +259,10 @@ full body, soft cel shading, clean lineart, transparent background, no shadow on
 |---|---|---|---|
 | 00023、00023-1 | 疲憊 | 頭約小 9% | 修頭部比例 |
 | 00035 | 伸懶腰 | 頭約小 7% | 修頭部比例（伸展姿勢有輕微縮短，影響不大） |
-| 00076、00076-1 | 坐視窗邊緣 | 頭約小 27% | 畫面高度已用到極限，請重孵頭大一點的版本（80 的比例很好，可以當底圖） |
 | 00078 | 優雅緩降 | 頭約小 17%（低頭有透視縮短，我已放大 1.05） | 看得順眼可略過 |
 | 00083、00083-1 | 趴在視窗上 | 看不到花飾，目測頭約小 15%（我已放大 1.2；再大會超出畫布） | 可重孵頭大一點、身體短一點的版本 |
 
-54（-3%）、55（-5%）、80（-1%）新圖比例都很好；我用縮放補正、不用你修的：00018、00019、walk5（走路原本偏大，已縮小）、00077（害羞，縮到 0.94）。
+53、54、55、80 與重做後的 76 比例都很好；我用縮放補正、不用你修的：00018、00019、walk5（走路原本偏大，已縮小）、00077（害羞，縮到 0.94）、24 系列（以花飾大小對齊）。
 
 **基準選 00027**：它是所有姿勢的底圖、眨眼與待機都用它，頭身比最接近設定的樣子；其他圖往它看齊。
 
