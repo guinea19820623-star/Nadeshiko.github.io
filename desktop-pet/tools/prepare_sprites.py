@@ -41,6 +41,7 @@ SPRITES = {
     "faint":      ("Qwen_image_2.1_00024.png", "box"),
     "faint2":     ("Qwen_image_2.1_00024-2.png", "flower:faint"),
     "faint3":     ("Qwen_image_2.1_00024-3.png", "auto", 1.026),
+    "faint3_b":   ("Qwen_image_2.1_00024-3-1.png", "auto", 1.026),
     "drag":       ("Qwen_image_2.1_00059.png", "auto", 1.04),
     "fly1":       ("Qwen_image_2.1_00054.png", "box", 1.03),
     "fly1_b":     ("Qwen_image_2.1_00054-1.png", "box", 1.03),

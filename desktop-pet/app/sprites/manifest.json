@@ -565,6 +565,20 @@
     80
    ]
   },
+  "faint3_b": {
+   "file": "faint3_b.png",
+   "source": "Qwen_image_2.1_00024-3-1.png",
+   "bbox": [
+    74,
+    110,
+    650,
+    648
+   ],
+   "head": [
+    330,
+    110
+   ]
+  },
   "fly1_b": {
    "file": "fly1_b.png",
    "source": "Qwen_image_2.1_00054-1.png",

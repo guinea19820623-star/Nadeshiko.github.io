@@ -372,17 +372,23 @@ function lieMode() {
 // 睡醒／暈倒後爬起來：躺著撐起 → 坐起揉眼睛 → 準備站起，然後接回站立
 // from='faint'：暈倒爬起來走另一條路（躺著揉眼 → 坐著揉眼 → 跪坐摸頭髮），側睡醒來走 wake1→3
 function wakeMode(from) {
+  // 每段 [圖, 秒數, 眨眼的開始時間們]：起身途中定時眨 1～2 次再接下一個動作（沒有閉眼版的圖就不眨）
   const seq = from === 'faint'
-    ? [['faint2', 1.8], ['faint3', 1.9], ['wake3', 1.3]]
-    : [['wake1', 1.5], ['wake2', 1.7], ['wake3', 1.3]];
+    ? [['faint2', 1.8, []], ['faint3', 2.3, [0.6, 1.3]], ['wake3', 1.8, [0.7]]]
+    : [['wake1', 1.5, []], ['wake2', 2.3, [0.6, 1.3]], ['wake3', 1.8, [0.7]]];
   const total = seq.reduce((a, [, d]) => a + d, 0);
   return {
     name: 'wake',
     enter() { S.lastInteraction = performance.now(); say('wake', 2400); },
     update(dt, t) {
       let acc = 0;
-      for (const [k, d] of seq) {
-        if (t < acc + d) { view.sprite = (k === 'wake1' || k === 'faint2' || k === 'faint3') ? k : eyes(k, t, 0.3); break; }
+      for (const [k, d, blinks] of seq) {
+        if (t < acc + d) {
+          const lt = t - acc;
+          const shut = blinks.some((b) => lt >= b && lt < b + 0.16);
+          view.sprite = shut && S.manifest.sprites[`${k}_b`] ? `${k}_b` : k;
+          break;
+        }
         acc += d;
       }
       breathe(t, 0.008, 2.6);
