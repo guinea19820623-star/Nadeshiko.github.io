@@ -57,6 +57,9 @@ SPRITES = {
     "walk3":      ("Qwen_image_2.1_00018.png", "auto", 1.03),
     "walk4":      ("Qwen_image_2.1_00019.png", "auto", 1.03),
     "walk5":      ("9ec4f8ce-55ae-41de-89a6-1f7251bb80a7", "auto", 1.034),
+    # 新走路（祐 2026-10-26）：walk-src/ 裡從 00089 切出的兩張；以「身高」對齊舊走路（約 607／660），不用花飾，因為 21 側身時花飾看起來比較大
+    "walk20":     ("walk20.png", "auto", 1.166),
+    "walk21":     ("walk21.png", "auto", 1.147),
     "pose":       ("1793e431-d033-4131-b125-5722b41a6ba5", "auto"),
     # --- v0.3：新動作（2026-10-21） ---
     "work2":      ("Qwen_image_2.1_00060.png", "front"),

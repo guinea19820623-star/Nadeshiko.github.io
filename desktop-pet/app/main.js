@@ -28,7 +28,6 @@ const DEFAULT_SETTINGS = {
   perch: true,
   volume: 60,
   bubbleScale: 100,
-  dropSens: 3,
   alwaysOnTop: true,
   hotkey: 'CommandOrControl+Alt+N',
   tiredAt: 85,
@@ -51,7 +50,6 @@ function loadSettings() {
   const s = bridge.readJSON(settingsFile());
   if (s) settings = { ...DEFAULT_SETTINGS, ...s };
   settings.size = clampSize(settings.size);
-  settings.dropSens = Math.max(1, Math.min(5, Math.round(Number(settings.dropSens) || 3)));
   settings.bubbleScale = Math.max(70, Math.min(220, Math.round(Number(settings.bubbleScale) || 100)));
 }
 
@@ -188,53 +186,117 @@ public class NW {
   }
 }
 "@
-[NW]::List(__PID__)
+if ($args.Count -gt 0 -and $args[0] -eq 'serve') {
+  # 常駐模式：只編譯一次，之後每收到一行就回一份清單（幾毫秒），坐在視窗上才能即時發現視窗被移動
+  while ($true) {
+    $line = [Console]::In.ReadLine()
+    if ($line -eq $null) { break }
+    [Console]::Out.WriteLine([NW]::List(__PID__))
+    [Console]::Out.Flush()
+  }
+} else {
+  [NW]::List(__PID__)
+}
 `;
 
 let windowsCache = { at: 0, res: { list: [], error: null } };
 let windowsBusy = null;
 let psFile = null;
+let server = null; // 常駐的 PowerShell：{ proc, buf, waiting: [{ resolve, timer }], ready }
+
+function writePs() {
+  if (!psFile) psFile = path.join(app.getPath('temp'), `nadeshiko-windows-${process.pid}.ps1`);
+  fs.writeFileSync(psFile, '\ufeff' + LIST_WINDOWS_PS.replace(/__PID__/g, String(process.pid)), 'utf8');
+}
+
+function toDip(raw) {
+  return raw.map((w) => {
+    const a = screen.screenToDipPoint({ x: w.x, y: w.y });
+    const b = screen.screenToDipPoint({ x: w.x + w.w, y: w.y + w.h });
+    return { id: w.id, x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+  });
+}
+
+function stopServer() {
+  if (!server) return;
+  const s = server; server = null;
+  for (const w of s.waiting) { clearTimeout(w.timer); w.resolve(null); }
+  try { s.proc.stdin.end(); s.proc.kill(); } catch (_) { /* ignore */ }
+}
+
+// 常駐模式問一次；失敗回 null（呼叫端改用一次性的方式）
+function askServer() {
+  return new Promise((resolve) => {
+    try {
+      if (!server) {
+        writePs();
+        const proc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psFile, 'serve'], { windowsHide: true });
+        const srv = { proc, buf: '', waiting: [], ready: false };
+        server = srv;
+        proc.stdout.setEncoding('utf8');
+        proc.stdout.on('data', (d) => {
+          srv.buf += d;
+          let k;
+          while ((k = srv.buf.indexOf('\n')) >= 0) {
+            const line = srv.buf.slice(0, k).trim();
+            srv.buf = srv.buf.slice(k + 1);
+            if (!line.startsWith('[')) continue;
+            const w = srv.waiting.shift();
+            if (!w) continue;
+            clearTimeout(w.timer);
+            srv.ready = true;
+            try { w.resolve(JSON.parse(line)); } catch (_) { w.resolve(null); }
+          }
+        });
+        proc.stderr.on('data', (d) => console.error('[perch]', String(d).trim().slice(0, 200)));
+        const gone = () => { if (server === srv) stopServer(); };
+        proc.on('error', gone);
+        proc.on('close', gone);
+      }
+      const srv = server;
+      // 第一次要編譯 C#，給久一點；之後應該幾毫秒就回來
+      const timer = setTimeout(() => { resolve(null); stopServer(); }, srv.ready ? 4000 : 15000);
+      srv.waiting.push({ resolve, timer });
+      srv.proc.stdin.write('list\n');
+    } catch (_) { stopServer(); resolve(null); }
+  });
+}
+
+// 一次性執行（常駐模式失敗時的備案）
+function listOnce() {
+  return new Promise((resolve) => {
+    let out = '';
+    let err = '';
+    try {
+      writePs();
+      const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psFile], { windowsHide: true });
+      const timer = setTimeout(() => { try { ps.kill(); } catch (_) { /* ignore */ } resolve({ list: [], error: 'PowerShell 逾時（第一次編譯可能較慢，會再試）' }); }, 15000);
+      ps.stdout.on('data', (d) => { out += d; });
+      ps.stderr.on('data', (d) => { err += d; });
+      ps.on('error', (e) => { clearTimeout(timer); resolve({ list: [], error: `無法啟動 PowerShell：${e.message}` }); });
+      ps.on('close', () => {
+        clearTimeout(timer);
+        try { resolve({ list: toDip(JSON.parse(out.trim().split(/\r?\n/).pop())), error: null }); } catch (_) {
+          resolve({ list: [], error: `PowerShell 沒回傳可用的視窗清單：${(err || out).trim().slice(0, 160) || '無輸出'}` });
+        }
+      });
+    } catch (e) { resolve({ list: [], error: `執行失敗：${e.message}` }); }
+  });
+}
 
 // 回傳 { list, error }；error 說明為什麼拿不到（給「找不到視窗」的提示用）
 function listWindows() {
   if (process.platform !== 'win32') return Promise.resolve({ list: [], error: '只有 Windows 能偵測視窗' });
-  if (Date.now() - windowsCache.at < 1500) return Promise.resolve(windowsCache.res);
+  if (Date.now() - windowsCache.at < 200) return Promise.resolve(windowsCache.res);
   if (windowsBusy) return windowsBusy;
-  windowsBusy = new Promise((resolve) => {
-    let out = '';
-    let err = '';
-    let done = false;
-    const finish = (list, error) => {
-      if (done) return; done = true; windowsBusy = null;
-      const res = { list, error: error || null };
-      if (error) console.error('[perch]', error);
+  windowsBusy = askServer()
+    .then((raw) => (raw ? { list: toDip(raw), error: null } : listOnce()))
+    .then((res) => {
+      if (res.error) console.error('[perch]', res.error);
       windowsCache = { at: Date.now(), res };
-      resolve(res);
-    };
-    try {
-      // 寫成暫存的 .ps1 再用 -File 執行（比從 stdin 餵多行的 C# 區塊穩）
-      if (!psFile) {
-        psFile = path.join(app.getPath('temp'), `nadeshiko-windows-${process.pid}.ps1`);
-      }
-      fs.writeFileSync(psFile, '\ufeff' + LIST_WINDOWS_PS.replace('__PID__', String(process.pid)), 'utf8');
-      const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', psFile], { windowsHide: true });
-      const timer = setTimeout(() => { try { ps.kill(); } catch (_) { /* ignore */ } finish([], 'PowerShell 逾時（第一次編譯可能較慢，會再試）'); }, 15000);
-      ps.stdout.on('data', (d) => { out += d; });
-      ps.stderr.on('data', (d) => { err += d; });
-      ps.on('error', (e) => { clearTimeout(timer); finish([], `無法啟動 PowerShell：${e.message}`); });
-      ps.on('close', () => {
-        clearTimeout(timer);
-        try {
-          const raw = JSON.parse(out.trim().split(/\r?\n/).pop());
-          finish(raw.map((w) => {
-            const a = screen.screenToDipPoint({ x: w.x, y: w.y });
-            const b = screen.screenToDipPoint({ x: w.x + w.w, y: w.y + w.h });
-            return { id: w.id, x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
-          }));
-        } catch (_) { finish([], `PowerShell 沒回傳可用的視窗清單：${(err || out).trim().slice(0, 160) || '無輸出'}`); }
-      });
-    } catch (e) { finish([], `執行失敗：${e.message}`); }
-  });
+      windowsBusy = null;
+      return res;
+    });
   return windowsBusy;
 }
 
@@ -566,5 +628,5 @@ if (!app.requestSingleInstanceLock()) {
     screen.on('display-removed', () => setTimeout(recoverPet, 800));
   });
   app.on('window-all-closed', () => app.quit());
-  app.on('will-quit', () => globalShortcut.unregisterAll());
+  app.on('will-quit', () => { globalShortcut.unregisterAll(); stopServer(); });
 }

@@ -16,7 +16,8 @@ const staminaEl = document.getElementById('stamina');
 const fxEl = document.getElementById('fx');
 
 // 沒有左右腳交替的素材，用「大步 → 收腳 → 抬後腳 → 跨出」四張輪播
-const WALK_FRAMES = ['walk4', 'walk1', 'walk2', 'walk3'];
+// 走路：祐 2026-10-26 新孵的兩張大步幅（20、21），舊的 15～19 暫時不用但素材保留
+const WALK_FRAMES = ['walk20', 'walk21'];
 const ACTION_LINES = {
   yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '好耶～', nap: 'Zzz…',
   curious: '嗯？', pose: '♪', happy: '嘿嘿♪', pat: '再摸一下嘛…', drag: '哇！放我下來～', dizzy: '暈…',
@@ -45,7 +46,8 @@ const S = {
 };
 
 // 目前畫面要怎麼畫
-const view = { sprite: 'idle', flip: false, dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, pivot: 'feet' };
+// blend：{ sprite, a } 疊在上面淡入的下一張圖（走路換腳時用，看起來像殘影過渡，不會硬切）
+const view = { sprite: 'idle', flip: false, dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, pivot: 'feet', blend: null };
 
 // ---------- 小工具 ----------
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -186,6 +188,12 @@ function draw() {
   ctx.scale(view.sx * (view.flip ? -1 : 1), view.sy);
   ctx.translate(-px, -py);
   ctx.drawImage(bmp, S.padX, S.bubbleH, S.size, S.size);
+  const nb = view.blend && view.blend.a > 0.01 && S.bitmaps[view.blend.sprite];
+  if (nb) {
+    ctx.globalAlpha = Math.min(1, view.blend.a);
+    ctx.drawImage(nb, S.padX, S.bubbleH, S.size, S.size);
+    ctx.globalAlpha = 1;
+  }
 }
 
 // 目前畫出來的頭頂在哪（視窗內座標），泡泡跟著它
@@ -239,7 +247,7 @@ function setMode(m) {
   if (mode && mode.exit) mode.exit();
   mode = m;
   modeT = 0;
-  Object.assign(view, { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, pivot: 'feet' });
+  Object.assign(view, { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, pivot: 'feet', blend: null });
   if (m.enter) m.enter();
 }
 
@@ -408,20 +416,27 @@ function walkMode() {
   if (S.pos.x > maxX - 120) dir = -1;
   const dist = rand(150, 520);
   const target = clamp(S.pos.x + dir * dist, minX, maxX);
-  const speed = S.size * 0.32; // px / 秒
+  const speed = S.size * 0.4; // px / 秒（一步約前進 0.2 個身長，腳不會像在溜冰）
   return {
     name: 'walk',
     ownsPosition: true,
     update(dt, t) {
       const remaining = target - S.pos.x;
-      if (Math.abs(remaining) < 2) return false;
+      if (Math.abs(remaining) < 2) { view.blend = null; return false; }
       const step = Math.sign(remaining) * Math.min(Math.abs(remaining), speed * dt);
       moveTo(S.pos.x + step, groundY());
-      const phase = t * 5.6; // 每秒約 5.6 張
-      view.sprite = WALK_FRAMES[Math.floor(phase) % WALK_FRAMES.length];
+      // 一步一張：每步約 0.5 秒，步伐中段身體微微抬起、腳落地時回到地面；
+      // 每步最後 0.12 秒把下一張淡入，兩張大步幅之間不會硬切
+      const STEP = 0.5;
+      const phase = t / STEP;
+      const n = Math.floor(phase);
+      const p = phase - n;
+      view.sprite = WALK_FRAMES[n % WALK_FRAMES.length];
+      const fade = clamp((p - 0.72) / 0.28, 0, 1);
+      view.blend = fade > 0 ? { sprite: WALK_FRAMES[(n + 1) % WALK_FRAMES.length], a: fade * fade * (3 - 2 * fade) } : null;
       view.flip = remaining < 0;
-      view.dy = -Math.abs(Math.sin(phase * Math.PI / 2)) * S.size * 0.012;
-      view.rot = Math.sin(phase * Math.PI) * 0.012;
+      view.dy = -Math.sin(p * Math.PI) * S.size * 0.014;
+      view.rot = Math.sin(p * Math.PI) * 0.01 * (n % 2 ? 1 : -1);
       return t < 30;
     },
   };
@@ -553,9 +568,8 @@ function perchMode(opts = {}) {
       y: perchSeat(w, v).y,
     };
   };
-  const sens = Math.max(1, Math.min(5, Number(S.settings.dropSens) || 3));
-  const px = [20, 10, 4, 2, 1][sens - 1]; // 視窗動多少像素算動了
-  const checkEvery = [3000, 2000, 1200, 700, 400][sens - 1]; // 多久查一次視窗位置（毫秒）
+  const px = 1; // 視窗動超過 1 像素就算動了（祐定案：最敏感）
+  const checkEvery = 350; // 多久查一次視窗位置（毫秒）；常駐 PowerShell 回得很快，查勤一點沒負擔
   const changed = (a, b) => Math.abs(a.x - b.x) > px || Math.abs(a.y - b.y) > px || Math.abs(a.w - b.w) > px || Math.abs(a.h - b.h) > px;
   const go = (dest, dt, speed) => {
     const ex = dest.x - S.pos.x; const ey = dest.y - S.pos.y;
@@ -569,6 +583,7 @@ function perchMode(opts = {}) {
     return false;
   };
   const refresh = () => host.windows().then((res) => {
+    if (res.error) return; // 這次沒拿到清單（PowerShell 出錯）就當沒事，不要誤判成視窗消失
     const w = (res.list || []).find((x) => x.id === target.w.id);
     if (!w) { phase = 'drop'; phaseT = 0; return; }
     if (phase === 'fly') { target.w = w; return; } // 飛的途中視窗動了就改飛向新位置

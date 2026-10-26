@@ -1,5 +1,4 @@
 'use strict';
-const DROP_LABELS = ['很遲鈍', '遲鈍', '普通', '靈敏', '很靈敏'];
 const host = window.panelHost;
 const $ = (id) => document.getElementById(id);
 
@@ -46,8 +45,6 @@ function render() {
   $('size-out').textContent = `${settings.size}px`;
   $('volume').value = settings.volume;
   $('volume-out').textContent = `${settings.volume}%`;
-  $('dropSens').value = settings.dropSens || 3;
-  $('dropSens-out').textContent = DROP_LABELS[(settings.dropSens || 3) - 1];
   $('bubbleScale').value = settings.bubbleScale;
   $('bubbleScale-out').textContent = `${settings.bubbleScale}%`;
   for (const k of ['tiredAt', 'faintAt', 'napAt']) {
@@ -68,7 +65,6 @@ async function main() {
   bindRange('size', 'size', (v) => `${v}px`);
   $('size').oninput = () => { $('size-out').textContent = `${$('size').value}px`; host.set('size', Number($('size').value)); };
   bindRange('volume', 'volume', (v) => `${v}%`);
-  bindRange('dropSens', 'dropSens', (v) => DROP_LABELS[v - 1]);
   bindRange('bubbleScale', 'bubbleScale', (v) => `${v}%`);
   bindRange('tiredAt', 'tiredAt', (v) => `${v}%`);
   bindRange('faintAt', 'faintAt', (v) => `${v}%`);

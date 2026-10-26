@@ -366,6 +366,34 @@
     43
    ]
   },
+  "walk20": {
+   "file": "walk20.png",
+   "source": "walk20.png",
+   "bbox": [
+    99,
+    39,
+    509,
+    648
+   ],
+   "head": [
+    330,
+    39
+   ]
+  },
+  "walk21": {
+   "file": "walk21.png",
+   "source": "walk21.png",
+   "bbox": [
+    85,
+    39,
+    504,
+    648
+   ],
+   "head": [
+    330,
+    39
+   ]
+  },
   "pose": {
    "file": "pose.png",
    "source": "1793e431-d033-4131-b125-5722b41a6ba5",
