@@ -16,8 +16,6 @@ const staminaEl = document.getElementById('stamina');
 const fxEl = document.getElementById('fx');
 
 // 沒有左右腳交替的素材，用「大步 → 收腳 → 抬後腳 → 跨出」四張輪播
-// 走路：祐 2026-10-26 新孵的兩張大步幅（20、21），舊的 15～19 暫時不用但素材保留
-const WALK_FRAMES = ['walk20', 'walk21'];
 const ACTION_LINES = {
   yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '好耶～', nap: 'Zzz…',
   curious: '嗯？', pose: '♪', happy: '嘿嘿♪', pat: '再摸一下嘛…', drag: '哇！放我下來～', dizzy: '暈…',
@@ -405,7 +403,15 @@ function wakeMode(from) {
   };
 }
 
-// 在螢幕下緣走路：四張側身圖輪播 + 彈跳；往左走就鏡像
+// 在螢幕下緣走路（祐 2026-10-27 的 22 系列）：
+//   起步 22 站姿 → 22-2 → 進入 22-3～22-7 的來回循環（3 4 5 6 7 6 5 4 3 4 …）
+//   要停下來時繼續播到 22-5，再回 22 站姿。往左走就鏡像。
+const WALK_START = ['step0', 'step2'];
+const WALK_LOOP = ['step3', 'step4', 'step5', 'step6', 'step7', 'step6', 'step5', 'step4'];
+// 身體抬起的程度：雙腳交會（22-5）最高、大步幅（22-3、22-7）最低
+const WALK_LIFT = { step0: 0, step2: 0.4, step3: 0, step4: 0.5, step5: 1, step6: 0.5, step7: 0 };
+const WALK_FRAME = 0.14; // 每張停留秒數；3→7→3 八張＝左右各一步，約 1.1 秒
+
 function walkMode() {
   const wa = S.workArea;
   // S.pos 是視窗左上角；角色中心要留在螢幕內
@@ -416,28 +422,50 @@ function walkMode() {
   if (S.pos.x > maxX - 120) dir = -1;
   const dist = rand(150, 520);
   const target = clamp(S.pos.x + dir * dist, minX, maxX);
-  const speed = S.size * 0.4; // px / 秒（一步約前進 0.2 個身長，腳不會像在溜冰）
+  const speed = S.size * 0.36; // px / 秒：每一步約前進 0.2 個身長
+  let k = 0; // 播到第幾張
+  let acc = 0;
+  let stopping = false;
+  let standT = -1; // 回到站姿後再停一下才結束
+  const frameAt = (n) => (n < WALK_START.length ? WALK_START[n] : WALK_LOOP[(n - WALK_START.length) % WALK_LOOP.length]);
   return {
     name: 'walk',
     ownsPosition: true,
     update(dt, t) {
       const remaining = target - S.pos.x;
-      if (Math.abs(remaining) < 2) { view.blend = null; return false; }
-      const step = Math.sign(remaining) * Math.min(Math.abs(remaining), speed * dt);
-      moveTo(S.pos.x + step, groundY());
-      // 一步一張：每步約 0.5 秒，步伐中段身體微微抬起、腳落地時回到地面；
-      // 每步最後 0.12 秒把下一張淡入，兩張大步幅之間不會硬切
-      const STEP = 0.5;
-      const phase = t / STEP;
-      const n = Math.floor(phase);
-      const p = phase - n;
-      view.sprite = WALK_FRAMES[n % WALK_FRAMES.length];
-      const fade = clamp((p - 0.72) / 0.28, 0, 1);
-      view.blend = fade > 0 ? { sprite: WALK_FRAMES[(n + 1) % WALK_FRAMES.length], a: fade * fade * (3 - 2 * fade) } : null;
-      view.flip = remaining < 0;
-      view.dy = -Math.sin(p * Math.PI) * S.size * 0.014;
-      view.rot = Math.sin(p * Math.PI) * 0.01 * (n % 2 ? 1 : -1);
-      return t < 30;
+      if (!stopping && (Math.abs(remaining) < 2 || t > 30)) stopping = true;
+      acc += dt;
+      while (acc >= WALK_FRAME && standT < 0) {
+        acc -= WALK_FRAME;
+        // 停步：播到 22-5（雙腳併攏）就收回站姿；還在起步就直接站好
+        if (stopping && (frameAt(k) === 'step5' || k < WALK_START.length)) { standT = 0; break; }
+        k++;
+      }
+      if (standT >= 0) {
+        standT += dt;
+        view.sprite = 'step0';
+        view.blend = null;
+        view.dy = 0;
+        view.rot = 0;
+        return standT < 0.25;
+      }
+      if (!stopping) {
+        const v = k < WALK_START.length ? speed * 0.5 : speed; // 起步慢一點
+        const step = Math.sign(remaining) * Math.min(Math.abs(remaining), v * dt);
+        moveTo(S.pos.x + step, groundY());
+        view.flip = remaining < 0;
+      }
+      const cur = frameAt(k);
+      const next = stopping && cur === 'step5' ? 'step0' : frameAt(k + 1);
+      const p = acc / WALK_FRAME;
+      // 每張最後 40% 把下一張淡入，相鄰兩張很接近，看起來是連續的動作
+      const fade = clamp((p - 0.6) / 0.4, 0, 1);
+      view.sprite = eyes(cur, t, 0.4); // 祐補上 22-x-1 閉眼版後會自動眨眼
+      view.blend = fade > 0 ? { sprite: next, a: fade * fade * (3 - 2 * fade) } : null;
+      const lift = WALK_LIFT[cur] + (WALK_LIFT[next] - WALK_LIFT[cur]) * p;
+      view.dy = -lift * S.size * 0.012;
+      view.rot = 0;
+      return true;
     },
   };
 }

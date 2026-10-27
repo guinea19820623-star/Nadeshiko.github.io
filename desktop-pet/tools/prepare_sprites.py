@@ -52,14 +52,24 @@ SPRITES = {
     "fly3_b":     ("Qwen_image_2.1_00053-1.png", "box", 1.02),
     # 髮與蕾絲裙飄逸版：跟 fly3 交替時不能跳，所以用髮飾的位置與大小對齊 fly3
     "fly3_hair":  ("Qwen_image_2.1_00053-2.png", "flower:fly3"),
-    "walk1":      ("Qwen_image_2.1_00016.png", "auto", 1.005),
-    "walk2":      ("Qwen_image_2.1_00017.png", "auto", 1.038),
-    "walk3":      ("Qwen_image_2.1_00018.png", "auto", 1.03),
-    "walk4":      ("Qwen_image_2.1_00019.png", "auto", 1.03),
-    "walk5":      ("9ec4f8ce-55ae-41de-89a6-1f7251bb80a7", "auto", 1.034),
+    # 舊走路 15～19：祐 2026-10-27 已從專案移除原圖，停用
+    #     "walk1":      ("Qwen_image_2.1_00016.png", "auto", 1.005),
+    #     "walk2":      ("Qwen_image_2.1_00017.png", "auto", 1.038),
+    #     "walk3":      ("Qwen_image_2.1_00018.png", "auto", 1.03),
+    #     "walk4":      ("Qwen_image_2.1_00019.png", "auto", 1.03),
+    #     "walk5":      ("9ec4f8ce-55ae-41de-89a6-1f7251bb80a7", "auto", 1.034),
     # 新走路（祐 2026-10-26）：walk-src/ 裡從 00089 切出的兩張；以「身高」對齊舊走路（約 607／660），不用花飾，因為 21 側身時花飾看起來比較大
     "walk20":     ("walk20.png", "auto", 1.166),
     "walk21":     ("walk21.png", "auto", 1.147),
+    # 走路 v2（祐 2026-10-27）：22 站姿 → 22-2 起步 → 22-3～22-7 循環。來源大小不一，第三個值寫 "h610"
+    # 代表「不管原圖多大，輸出後的身高統一 610／660」，走路時人物高度固定、不會忽大忽小
+    "step0":      ("Qwen_image_2.1_00022.png", "auto", "h610"),
+    "step2":      ("Qwen_image_2.1_00022-2.png", "auto", "h610"),
+    "step3":      ("Qwen_image_2.1_00022-3.png", "auto", "h610"),
+    "step4":      ("Qwen_image_2.1_00022-4.png", "auto", "h610"),
+    "step5":      ("Qwen_image_2.1_00022-5.png", "auto", "h610"),
+    "step6":      ("Qwen_image_2.1_00022-6.png", "auto", "h610"),
+    "step7":      ("Qwen_image_2.1_00022-7.png", "auto", "h610"),
     "pose":       ("1793e431-d033-4131-b125-5722b41a6ba5", "auto"),
     # --- v0.3：新動作（2026-10-21） ---
     "work2":      ("Qwen_image_2.1_00060.png", "front"),
@@ -188,6 +198,10 @@ def main():
                 missing.append((key, name)); continue
             own = flower_stats(im)
             zoom = flowers[ref][2] / own[2]
+        if isinstance(zoom, str) and zoom.startswith("h"):
+            # 指定輸出身高：先裁到人物外框（原圖可能比畫布高），再算縮放
+            im = im.crop(im.getbbox())
+            zoom = (float(zoom[1:]) / scale) / im.height
         if zoom != 1.0:
             im = im.convert("RGBa").resize((round(im.width * zoom), round(im.height * zoom)), Image.LANCZOS).convert("RGBA")
         im = trim_stray_bottom(im)

@@ -296,76 +296,6 @@
     44
    ]
   },
-  "walk1": {
-   "file": "walk1.png",
-   "source": "Qwen_image_2.1_00016.png",
-   "bbox": [
-    93,
-    43,
-    427,
-    648
-   ],
-   "head": [
-    330,
-    43
-   ]
-  },
-  "walk2": {
-   "file": "walk2.png",
-   "source": "Qwen_image_2.1_00017.png",
-   "bbox": [
-    97,
-    42,
-    432,
-    647
-   ],
-   "head": [
-    330,
-    42
-   ]
-  },
-  "walk3": {
-   "file": "walk3.png",
-   "source": "Qwen_image_2.1_00018.png",
-   "bbox": [
-    69,
-    41,
-    462,
-    647
-   ],
-   "head": [
-    330,
-    41
-   ]
-  },
-  "walk4": {
-   "file": "walk4.png",
-   "source": "Qwen_image_2.1_00019.png",
-   "bbox": [
-    64,
-    47,
-    507,
-    648
-   ],
-   "head": [
-    330,
-    47
-   ]
-  },
-  "walk5": {
-   "file": "walk5.png",
-   "source": "9ec4f8ce-55ae-41de-89a6-1f7251bb80a7",
-   "bbox": [
-    25,
-    43,
-    524,
-    647
-   ],
-   "head": [
-    330,
-    43
-   ]
-  },
   "walk20": {
    "file": "walk20.png",
    "source": "walk20.png",
@@ -392,6 +322,104 @@
    "head": [
     330,
     39
+   ]
+  },
+  "step0": {
+   "file": "step0.png",
+   "source": "Qwen_image_2.1_00022.png",
+   "bbox": [
+    95,
+    39,
+    473,
+    649
+   ],
+   "head": [
+    330,
+    39
+   ]
+  },
+  "step2": {
+   "file": "step2.png",
+   "source": "Qwen_image_2.1_00022-2.png",
+   "bbox": [
+    89,
+    39,
+    459,
+    648
+   ],
+   "head": [
+    330,
+    39
+   ]
+  },
+  "step3": {
+   "file": "step3.png",
+   "source": "Qwen_image_2.1_00022-3.png",
+   "bbox": [
+    85,
+    38,
+    501,
+    648
+   ],
+   "head": [
+    330,
+    38
+   ]
+  },
+  "step4": {
+   "file": "step4.png",
+   "source": "Qwen_image_2.1_00022-4.png",
+   "bbox": [
+    116,
+    38,
+    475,
+    647
+   ],
+   "head": [
+    330,
+    38
+   ]
+  },
+  "step5": {
+   "file": "step5.png",
+   "source": "Qwen_image_2.1_00022-5.png",
+   "bbox": [
+    114,
+    38,
+    473,
+    648
+   ],
+   "head": [
+    330,
+    38
+   ]
+  },
+  "step6": {
+   "file": "step6.png",
+   "source": "Qwen_image_2.1_00022-6.png",
+   "bbox": [
+    121,
+    38,
+    475,
+    647
+   ],
+   "head": [
+    330,
+    38
+   ]
+  },
+  "step7": {
+   "file": "step7.png",
+   "source": "Qwen_image_2.1_00022-7.png",
+   "bbox": [
+    99,
+    38,
+    510,
+    648
+   ],
+   "head": [
+    330,
+    38
    ]
   },
   "pose": {
