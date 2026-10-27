@@ -40,18 +40,21 @@ SPRITES = {
     "cheer":      ("Qwen_image_2.1_00045.png", "auto"),
     "faint":      ("Qwen_image_2.1_00024.png", "box"),
     "faint2":     ("Qwen_image_2.1_00024-2.png", "flower:faint"),
+    "faint2_b":   ("Qwen_image_2.1_00024-2-1.png", "match"),
     "faint3":     ("Qwen_image_2.1_00024-3.png", "auto", 1.026),
     "faint3_b":   ("Qwen_image_2.1_00024-3-1.png", "auto", 1.026),
     "drag":       ("Qwen_image_2.1_00059.png", "auto", 1.04),
     "fly1":       ("Qwen_image_2.1_00054.png", "box", 1.03),
     "fly1_b":     ("Qwen_image_2.1_00054-1.png", "box", 1.03),
-    "fly2":       ("Qwen_image_2.1_00055.png", "box", 1.05),
-    "fly2_b":     ("Qwen_image_2.1_00055-1.png", "box", 1.05),
+    "fly1_hair":  ("Qwen_image_2.1_00054-2.png", "fit:fly1"),
+    # 55/55-1 祐 2026-10-27 停用，準備改成更優雅的飛行姿勢
+    # "fly2":       ("Qwen_image_2.1_00055.png", "box", 1.05),
+    # "fly2_b":     ("Qwen_image_2.1_00055-1.png", "box", 1.05),
     "float":      ("Qwen_image_2.1_00078.png", "box", 1.05),
     "fly3":       ("Qwen_image_2.1_00053.png", "box", 1.02),
     "fly3_b":     ("Qwen_image_2.1_00053-1.png", "box", 1.02),
     # 髮與蕾絲裙飄逸版：跟 fly3 交替時不能跳，所以用髮飾的位置與大小對齊 fly3
-    "fly3_hair":  ("Qwen_image_2.1_00053-2.png", "flower:fly3"),
+    "fly3_hair":  ("Qwen_image_2.1_00053-2.png", "fit:fly3"),
     # 舊走路 15～19：祐 2026-10-27 已從專案移除原圖，停用
     #     "walk1":      ("Qwen_image_2.1_00016.png", "auto", 1.005),
     #     "walk2":      ("Qwen_image_2.1_00017.png", "auto", 1.038),
@@ -64,12 +67,16 @@ SPRITES = {
     # 走路 v2（祐 2026-10-27）：22 站姿 → 22-2 起步 → 22-3～22-7 循環。來源大小不一，第三個值寫 "h610"
     # 代表「不管原圖多大，輸出後的身高統一 610／660」，走路時人物高度固定、不會忽大忽小
     "step0":      ("Qwen_image_2.1_00022.png", "auto", "h610"),
+    "step0_b":    ("Qwen_image_2.1_00022-1.png", "match"),
     "step2":      ("Qwen_image_2.1_00022-2.png", "auto", "h610"),
     "step3":      ("Qwen_image_2.1_00022-3.png", "auto", "h610"),
+    "step3_b":    ("Qwen_image_2.1_00022-3-1.png", "match"),
     "step4":      ("Qwen_image_2.1_00022-4.png", "auto", "h610"),
     "step5":      ("Qwen_image_2.1_00022-5.png", "auto", "h610"),
+    "step5_b":    ("Qwen_image_2.1_00022-5-1.png", "match"),
     "step6":      ("Qwen_image_2.1_00022-6.png", "auto", "h610"),
     "step7":      ("Qwen_image_2.1_00022-7.png", "auto", "h610"),
+    "step7_b":    ("Qwen_image_2.1_00022-7-1.png", "match"),
     "pose":       ("1793e431-d033-4131-b125-5722b41a6ba5", "auto"),
     # --- v0.3：新動作（2026-10-21） ---
     "work2":      ("Qwen_image_2.1_00060.png", "front"),
@@ -165,6 +172,51 @@ def head_x(a):
     return float(xs.mean())
 
 
+def place(im, x, y, size):
+    c = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    cx, cy = max(0, -x), max(0, -y)
+    c.alpha_composite(im.crop((cx, cy, im.width, im.height)), (x + cx, y + cy))
+    return np.asarray(c, dtype=np.float32)
+
+
+def fit_score(ref, cand):
+    ma, mb = ref[:, :, 3] > 200, cand[:, :, 3] > 200
+    both = ma & mb
+    if both.sum() < 200:
+        return 1e9
+    diff = np.abs(ref[:, :, :3] - cand[:, :, :3]).sum(2)[both].mean()
+    return diff + 0.3 * 255 * (1 - both.sum() / (ma | mb).sum())
+
+
+def fit_refine(ref_canvas, im, dx, dy):
+    """飄逸版（頭髮、裙子會動）只對髮飾不夠：身體可能被生圖放大或挪一點。
+    以髮飾對齊為起點，找一個縮放與位移，讓兩張「重疊的地方」顏色最像（臉、身體、腳會疊在一起）。"""
+    best = (fit_score_at(ref_canvas, im, 1.0, dx, dy, 0.25), 1.0, dx, dy)
+    for q, zs, step, span in ((0.25, 0.01, 8, 48), (0.5, 0.004, 2, 8)):
+        _, z0, x0, y0 = best
+        ref = np.asarray(ref_canvas.resize((round(CANVAS * q),) * 2, Image.LANCZOS), dtype=np.float32)
+        best = (fit_score_at(ref, im, z0, x0, y0, q), z0, x0, y0)
+        for z in np.arange(z0 - 4 * zs, z0 + 4.01 * zs, zs) if q > 0.25 else np.arange(0.92, 1.081, zs):
+            small = im.resize((max(1, round(im.width * z * q)), max(1, round(im.height * z * q))), Image.LANCZOS)
+            for ox in range(-span, span + 1, step):
+                for oy in range(-span, span + 1, step):
+                    x, y = x0 + ox + im.width * (1 - z) / 2, y0 + oy + im.height * (1 - z) / 2
+                    sc = fit_score(ref, place(small, round(x * q), round(y * q), ref.shape[0]))
+                    if sc < best[0]:
+                        best = (sc, z, x0 + ox, y0 + oy)
+    _, z, x, y = best
+    out = im.convert("RGBa").resize((round(im.width * z), round(im.height * z)), Image.LANCZOS).convert("RGBA")
+    return out, x + im.width * (1 - z) / 2, y + im.height * (1 - z) / 2
+
+
+def fit_score_at(ref, im, z, x, y, q):
+    if isinstance(ref, Image.Image):
+        ref = np.asarray(ref.resize((round(CANVAS * q),) * 2, Image.LANCZOS), dtype=np.float32)
+    small = im.resize((max(1, round(im.width * z * q)), max(1, round(im.height * z * q))), Image.LANCZOS)
+    x, y = x + im.width * (1 - z) / 2, y + im.height * (1 - z) / 2
+    return fit_score(ref, place(small, round(x * q), round(y * q), ref.shape[0]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     here = os.path.dirname(os.path.abspath(__file__))
@@ -180,11 +232,20 @@ def main():
     missing = []
     cache = {}
     # 先算 front 基準；閉眼版（_b）排在原圖後面，共用原圖的位移，眨眼時才不會跳
-    order = sorted(SPRITES, key=lambda k: (k != FRONT_REF, SPRITES[k][1].startswith('flower:'), k.endswith('_b')))
+    def base_mode(k):  # match 版跟著原圖排序，要等原圖先算完
+        m = SPRITES[k[:-2]][1] if SPRITES[k][1] == "match" else SPRITES[k][1]
+        return "flower:" if m.startswith("fit:") else m
+    order = sorted(SPRITES, key=lambda k: (k != FRONT_REF, base_mode(k).startswith('flower:'), k.endswith('_b')))
     flowers = {}
     offsets = {}
+    boxes = {}
+    fit_refs = {v[1].split(":")[1] for v in SPRITES.values() if v[1].startswith("fit:")}
+    canvases = {}
     for key in order:
         name, mode, *extra = SPRITES[key]
+        fit_ref = mode.split(":")[1] if mode.startswith("fit:") else None
+        if fit_ref:
+            mode = "flower:" + fit_ref
         zoom = extra[0] if extra else 1.0
         path = find(args.src, name)
         if not path:
@@ -192,7 +253,17 @@ def main():
             continue
         im = cache.get(path) or load(path)
         cache[path] = im
-        if mode.startswith("flower:"):
+        if mode == "match":
+            # 閉眼版的原圖有時被生圖拉長了一點（例如 880 高變 896），等比縮放會讓身高或寬度差一點。
+            # 直接把人物外框拉到跟睜眼版輸出前一模一樣的大小與位置，眨眼時身高就不會變
+            bx0, by0, bw, bh, bdx, bdy = boxes[key[:-2]]
+            im = im.crop(im.getbbox()).convert("RGBa").resize((bw, bh), Image.LANCZOS).convert("RGBA")
+            zoom, extra = 1.0, []
+            mode = SPRITES[key[:-2]][1]
+            match_off = (bdx + bx0, bdy + by0)
+        else:
+            match_off = None
+        if mode.startswith("flower:") and match_off is None:
             ref = mode.split(":")[1]
             if ref not in flowers:
                 missing.append((key, name)); continue
@@ -204,7 +275,8 @@ def main():
             zoom = (float(zoom[1:]) / scale) / im.height
         if zoom != 1.0:
             im = im.convert("RGBa").resize((round(im.width * zoom), round(im.height * zoom)), Image.LANCZOS).convert("RGBA")
-        im = trim_stray_bottom(im)
+        if match_off is None:
+            im = trim_stray_bottom(im)
         a = np.array(im)
         x0, y0, x1, y1 = im.getbbox()
         if mode == "front":
@@ -221,12 +293,20 @@ def main():
             dx, dy = CENTER - (x0 + x1) / 2, GROUND - y1
         if key.endswith("_b") and key[:-2] in offsets:
             dx, dy = offsets[key[:-2]]
+        if match_off is not None:
+            dx, dy = match_off
+        if fit_ref:
+            im, dx, dy = fit_refine(canvases[fit_ref], im, dx, dy)
+            x0, y0, x1, y1 = im.getbbox()
         offsets[key] = (dx, dy)
+        boxes[key] = (x0, y0, x1 - x0, y1 - y0, dx, dy)
         fs0 = flower_stats(im)
         if fs0 and not key.endswith("_b"):
             flowers[key] = (fs0[0] + dx, fs0[1] + dy, fs0[2])
         canvas = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
         canvas.alpha_composite(im, (round(dx), round(dy)))
+        if key in fit_refs:
+            canvases[key] = canvas
         out = canvas.convert("RGBa").resize((args.size, args.size), Image.LANCZOS).convert("RGBA")
         oa = np.array(out)
         oa[oa[:, :, 3] < 4] = 0

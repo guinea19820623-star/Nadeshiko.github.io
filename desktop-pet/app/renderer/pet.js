@@ -380,7 +380,7 @@ function lieMode() {
 function wakeMode(from) {
   // 每段 [圖, 秒數, 眨眼的開始時間們]：起身途中定時眨 1～2 次再接下一個動作（沒有閉眼版的圖就不眨）
   const seq = from === 'faint'
-    ? [['faint2', 1.8, []], ['faint3', 2.3, [0.6, 1.3]], ['wake3', 1.8, [0.7]]]
+    ? [['faint2', 1.8, [0.6, 1.2]], ['faint3', 2.3, [0.6, 1.3]], ['wake3', 1.8, [0.7]]]
     : [['wake1', 1.5, []], ['wake2', 2.3, [0.6, 1.3]], ['wake3', 1.8, [0.7]]];
   const total = seq.reduce((a, [, d]) => a + d, 0);
   return {
@@ -460,8 +460,9 @@ function walkMode() {
       const p = acc / WALK_FRAME;
       // 每張最後 40% 把下一張淡入，相鄰兩張很接近，看起來是連續的動作
       const fade = clamp((p - 0.6) / 0.4, 0, 1);
-      view.sprite = eyes(cur, t, 0.4); // 祐補上 22-x-1 閉眼版後會自動眨眼
-      view.blend = fade > 0 ? { sprite: next, a: fade * fade * (3 - 2 * fade) } : null;
+      view.sprite = eyes(cur, t, 0.4); // 22-1、22-3-1、22-5-1、22-7-1 閉眼版：走到這幾格剛好眨眼就閉上
+      const shut = view.sprite !== cur && S.manifest.sprites[`${next}_b`];
+      view.blend = fade > 0 ? { sprite: shut ? `${next}_b` : next, a: fade * fade * (3 - 2 * fade) } : null;
       const lift = WALK_LIFT[cur] + (WALK_LIFT[next] - WALK_LIFT[cur]) * p;
       view.dy = -lift * S.size * 0.012;
       view.rot = 0;
@@ -520,9 +521,11 @@ function flyMode() {
 }
 
 // 飛行姿勢：fly3 另有頭髮與蕾絲裙飄逸版，約每 0.5 秒與本體交替（兩張已依髮飾對齊）
-function pickFly() { return ['fly1', 'fly2', 'fly3'][Math.floor(Math.random() * 3)]; }
+// 55（fly2）祐在重畫更優雅的姿勢，先停用；有素材的才會被抽到
+function pickFly() { const k = ['fly1', 'fly2', 'fly3'].filter(n => S.manifest.sprites[n]); return k[Math.floor(Math.random() * k.length)]; }
 function flySprite(kind, t) {
-  if (kind === 'fly3' && S.manifest.sprites.fly3_hair && Math.floor(t / 0.5) % 2 === 1) return 'fly3_hair';
+  // 有飄逸版（54-2、53-2）就每 0.5 秒換一次，頭髮跟裙子像在風裡擺動
+  if (S.manifest.sprites[`${kind}_hair`] && Math.floor(t / 0.5) % 2 === 1) return `${kind}_hair`;
   return eyes(kind, t, 0.2);
 }
 
@@ -1159,6 +1162,6 @@ async function start() {
 }
 
 // 給自動測試看的窗口
-window.__pet = { S, view, headPoint, get mode() { return mode && mode.name; }, setMode, dragMode, idleMode, poseMode, walkMode, flyMode, fallMode, claudeState };
+window.__pet = { S, view, headPoint, get mode() { return mode && mode.name; }, setMode, dragMode, idleMode, poseMode, walkMode, flyMode, fallMode, wakeMode, claudeState };
 
 start();

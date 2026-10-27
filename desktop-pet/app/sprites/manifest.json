@@ -254,20 +254,6 @@
     84
    ]
   },
-  "fly2": {
-   "file": "fly2.png",
-   "source": "Qwen_image_2.1_00055.png",
-   "bbox": [
-    50,
-    165,
-    611,
-    647
-   ],
-   "head": [
-    330,
-    165
-   ]
-  },
   "float": {
    "file": "float.png",
    "source": "Qwen_image_2.1_00078.png",
@@ -649,20 +635,6 @@
     84
    ]
   },
-  "fly2_b": {
-   "file": "fly2_b.png",
-   "source": "Qwen_image_2.1_00055-1.png",
-   "bbox": [
-    48,
-    167,
-    612,
-    647
-   ],
-   "head": [
-    330,
-    167
-   ]
-  },
   "fly3_b": {
    "file": "fly3_b.png",
    "source": "Qwen_image_2.1_00053-1.png",
@@ -675,6 +647,62 @@
    "head": [
     330,
     44
+   ]
+  },
+  "step0_b": {
+   "file": "step0_b.png",
+   "source": "Qwen_image_2.1_00022-1.png",
+   "bbox": [
+    96,
+    39,
+    472,
+    648
+   ],
+   "head": [
+    330,
+    39
+   ]
+  },
+  "step3_b": {
+   "file": "step3_b.png",
+   "source": "Qwen_image_2.1_00022-3-1.png",
+   "bbox": [
+    83,
+    39,
+    501,
+    647
+   ],
+   "head": [
+    330,
+    39
+   ]
+  },
+  "step5_b": {
+   "file": "step5_b.png",
+   "source": "Qwen_image_2.1_00022-5-1.png",
+   "bbox": [
+    115,
+    37,
+    473,
+    648
+   ],
+   "head": [
+    330,
+    37
+   ]
+  },
+  "step7_b": {
+   "file": "step7_b.png",
+   "source": "Qwen_image_2.1_00022-7-1.png",
+   "bbox": [
+    99,
+    39,
+    509,
+    647
+   ],
+   "head": [
+    330,
+    39
    ]
   },
   "work2_b": {
@@ -937,27 +965,55 @@
    "source": "Qwen_image_2.1_00024-2.png",
    "bbox": [
     29,
-    126,
-    631,
-    650
+    127,
+    630,
+    651
    ],
    "head": [
     330,
-    126
+    127
+   ]
+  },
+  "fly1_hair": {
+   "file": "fly1_hair.png",
+   "source": "Qwen_image_2.1_00054-2.png",
+   "bbox": [
+    53,
+    83,
+    584,
+    651
+   ],
+   "head": [
+    330,
+    83
    ]
   },
   "fly3_hair": {
    "file": "fly3_hair.png",
    "source": "Qwen_image_2.1_00053-2.png",
    "bbox": [
-    29,
-    60,
-    636,
-    659
+    21,
+    52,
+    642,
+    660
    ],
    "head": [
     330,
-    60
+    52
+   ]
+  },
+  "faint2_b": {
+   "file": "faint2_b.png",
+   "source": "Qwen_image_2.1_00024-2-1.png",
+   "bbox": [
+    29,
+    127,
+    632,
+    651
+   ],
+   "head": [
+    330,
+    127
    ]
   }
  }
