@@ -15,6 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const voice = require('../app/lib/voicecore');
+const studio = require('../app/lib/voicestudio');
 
 const DIR = path.join(__dirname, '..', 'app', 'voice');
 
@@ -39,8 +40,8 @@ function parseArgs(argv) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const hasFfmpeg = () => spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 
-// 句尾補「……」，避免 TTS 把最後一個字吃掉
-const spoken = (l) => `${(l.say || l.text).replace(/[…]+$/, '')}……`;
+// 句尾補「……」，避免 TTS 把最後一個字吃掉；語音工作室可以替每句設定補幾個（pad）與後面接幾毫秒靜音（tail）
+const spoken = (l) => studio.spokenText(l, l.pad == null ? 1 : l.pad);
 
 async function breeze(o, text) {
   // 一次只能處理一個請求；忙碌（409）就等一下再試
@@ -85,7 +86,7 @@ async function main() {
     arr.forEach((l, i) => {
       const base = voice.fileBase(key, i);
       const done = voice.EXTS.some((e) => existing.has(`${base}.${e}`));
-      if (o.force || !done) jobs.push({ key, base, text: spoken(l), shown: l.text });
+      if (o.force || !done) jobs.push({ key, base, text: spoken(l), shown: l.text, tail: l.tail || 0 });
     });
   }
   if (o.check) {
@@ -102,6 +103,7 @@ async function main() {
   for (const j of jobs) {
     try {
       const got = o.engine === 'edge' ? edge(o, j.text, path.join(DIR, `${j.base}.tmp-edge.mp3`)) : await breeze(o, j.text);
+      if (got.ext === 'wav' && j.tail) got.data = studio.padWavSilence(got.data, j.tail);
       const name = save(j.base, got, ffmpeg);
       fs.rmSync(path.join(DIR, `${j.base}.tmp-edge.mp3`), { force: true });
       ok++;
@@ -109,7 +111,7 @@ async function main() {
     } catch (e) {
       failed.push(j.base);
       console.log(`✗ ${j.base}  ${e.message}`);
-      if (/fetch failed|ECONNREFUSED/.test(String(e.cause || e.message))) { console.log('連不上語音服務，請先啟動 Breeze-TTS（或加 --engine edge）。'); break; }
+      if (/fetch failed|ECONNREFUSED/.test(`${e.message} ${e.cause && (e.cause.code || e.cause.message)}`)) { console.log('連不上語音服務，請先啟動 Breeze-TTS（或加 --engine edge）。'); break; }
     }
   }
   console.log(`完成 ${ok} 句${failed.length ? `，失敗 ${failed.length} 句：${failed.join(', ')}` : ''}`);

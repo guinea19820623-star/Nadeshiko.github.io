@@ -33,6 +33,8 @@ const DEFAULT_SETTINGS = {
   tiredAt: 85,
   faintAt: 100,
   napAt: 100,
+  voiceUrl: 'http://127.0.0.1:8080', // 語音工作室用的 Breeze-TTS 位置與聲音
+  voiceName: 'agent_girl',
 };
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -310,6 +312,68 @@ function readVoice() {
   return { lines, files };
 }
 
+// ---------- 語音工作室：在控制面板生成、試聽、採用 ----------
+const studio = require('./lib/voicestudio');
+const VOICE_DIR = path.join(__dirname, 'voice');
+const takes = new Map(); // 還沒採用的試聽音檔（記憶體裡，關掉面板或再生成就丟掉）
+let takeSeq = 0;
+const MIME = { mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg' };
+
+function voiceReload() {
+  const v = readVoice();
+  send('pet:voice', v);
+  return v;
+}
+
+function setupVoiceIPC() {
+  ipcMain.handle('voice:list', () => ({ ...readVoice(), url: settings.voiceUrl, voice: settings.voiceName, max: studio.MAX_LINES }));
+
+  // 播現有的音檔（給面板試聽用）
+  ipcMain.handle('voice:read', (_e, key, i) => {
+    const base = `${key}_${i + 1}`;
+    for (const ext of ['mp3', 'ogg', 'wav']) {
+      const f = path.join(VOICE_DIR, `${base}.${ext}`);
+      if (fs.existsSync(f)) return { bytes: fs.readFileSync(f), mime: MIME[ext] };
+    }
+    return null;
+  });
+
+  // 生成 n 次（Breeze 一次只收一個，所以依序），回傳每次的音檔與長度；不會動到正式檔
+  ipcMain.handle('voice:gen', async (_e, o) => {
+    try {
+      const line = { text: o.text, say: o.say };
+      const text = studio.spokenText(line, o.pad == null ? 1 : o.pad);
+      if (!text.replace(/…/g, '').trim()) throw new Error('沒有要唸的字');
+      takes.clear();
+      const out = [];
+      const n = Math.max(1, Math.min(5, o.takes | 0 || 1));
+      for (let t = 0; t < n; t++) {
+        let wav = await studio.synth({ url: settings.voiceUrl, voice: settings.voiceName }, text);
+        if (o.tail > 0) wav = studio.padWavSilence(wav, o.tail);
+        const id = ++takeSeq;
+        takes.set(id, wav);
+        out.push({ id, bytes: wav, ms: studio.wavDurationMs(wav) });
+      }
+      return { text, takes: out };
+    } catch (e) {
+      const hint = /fetch failed|ECONNREFUSED/.test(`${e.message} ${e.cause && (e.cause.code || e.cause.message)}`) ? `連不上 ${settings.voiceUrl}，請先啟動 Breeze-TTS` : e.message;
+      return { error: hint };
+    }
+  });
+
+  // 採用：改台詞表，有選定試聽版本就一併換掉音檔，然後讓撫子立刻重新載入
+  ipcMain.handle('voice:adopt', (_e, o) => {
+    try {
+      const wav = o.takeId ? takes.get(o.takeId) : null;
+      if (o.takeId && !wav) throw new Error('這個試聽版本已經過期，請重新生成');
+      studio.adopt(VOICE_DIR, o.key, o.i, o.entry, wav);
+      return { ok: true, ...voiceReload() };
+    } catch (e) {
+      return { error: e.message };
+    }
+  });
+}
+
 function updateSetting(key, value) {
   settings[key] = value;
   if (key === 'alwaysOnTop' && pet) applyOnTop();
@@ -509,6 +573,8 @@ function setupIPC() {
     voice: readVoice(),
     stateDir: bridge.stateDir(),
   }));
+
+  setupVoiceIPC();
 
   ipcMain.handle('pet:windows', () => listWindows());
 

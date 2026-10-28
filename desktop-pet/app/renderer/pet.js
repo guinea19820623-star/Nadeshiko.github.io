@@ -66,7 +66,8 @@ const onGround = () => Math.abs(S.pos.y - groundY()) < 2;
 // ---------- 語音 ----------
 const VOICE_DIR = '../voice/';
 const VOICE_COOLDOWN = { thinking: 60000, working: 60000, tired: 120000, exhausted: 120000, faint: 120000, nap: 30000, sit: 30000, perch: 30000, perch_lie: 30000, drop: 20000, shy: 8000 };
-const audioCache = {};
+let audioCache = {};
+let voiceVer = 0; // 語音工作室換了音檔後加一，避免讀到舊的快取
 let nowPlaying = null;
 
 // 從該狀態的 2~3 句裡隨機挑一句（不連續重複）；沒有台詞表就回 null
@@ -83,7 +84,7 @@ function playFile(file) {
   if (!s.voice || !file || !(s.volume > 0)) return;
   try {
     let a = audioCache[file];
-    if (!a) { a = new Audio(VOICE_DIR + file); a.preload = 'auto'; audioCache[file] = a; } // 第一次要用才載入
+    if (!a) { a = new Audio(`${VOICE_DIR}${file}?v=${voiceVer}`); a.preload = 'auto'; audioCache[file] = a; } // 第一次要用才載入
     if (nowPlaying && nowPlaying !== a) nowPlaying.pause();
     a.volume = clamp(s.volume / 100, 0, 1);
     a.currentTime = 0;
@@ -1101,6 +1102,11 @@ async function start() {
   setInterval(refreshGeom, 3000);
 
   host.onSnapshot((snap) => { S.snapshot = snap; });
+  host.onVoice((v) => { // 語音工作室採用了新台詞或音檔
+    if (nowPlaying) nowPlaying.pause();
+    audioCache = {}; voiceVer++;
+    S.voice = voiceCore.build(v.lines, v.files);
+  });
   host.onForce((k) => { S.forced = k; });
   host.onSettings(async (s) => {
     if (!s) return;

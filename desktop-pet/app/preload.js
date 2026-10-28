@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('petHost', {
   onDragMove: on('pet:drag-move'),
   onRecover: on('pet:recover'),
   onSummon: on('pet:summon'),
+  onVoice: on('pet:voice'),
 });
 
 contextBridge.exposeInMainWorld('panelHost', {
@@ -30,6 +31,10 @@ contextBridge.exposeInMainWorld('panelHost', {
   simHook: (input) => ipcRenderer.send('sim:hook', input),
   simUsage: (five, week) => ipcRenderer.send('sim:usage', five, week),
   simClear: () => ipcRenderer.send('sim:clear'),
+  voiceList: () => ipcRenderer.invoke('voice:list'),
+  voiceRead: (key, i) => ipcRenderer.invoke('voice:read', key, i),
+  voiceGen: (o) => ipcRenderer.invoke('voice:gen', o),
+  voiceAdopt: (o) => ipcRenderer.invoke('voice:adopt', o),
   onSettings: on('panel:settings'),
   onSnapshot: on('panel:snapshot'),
   onForce: on('panel:force'),
