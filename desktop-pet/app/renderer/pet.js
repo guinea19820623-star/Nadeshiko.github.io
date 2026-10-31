@@ -189,6 +189,10 @@ function draw() {
   ctx.drawImage(bmp, S.padX, S.bubbleH, S.size, S.size);
   const nb = view.blend && view.blend.a > 0.01 && S.bitmaps[view.blend.sprite];
   if (nb) {
+    // 淡入的那張可以有自己的左右方向（影片走路往右時是鏡像，停下來淡回正面站姿時不要鏡像）
+    if (view.blend.flip != null && view.blend.flip !== view.flip) {
+      ctx.translate(px, py); ctx.scale(-1, 1); ctx.translate(-px, -py);
+    }
     ctx.globalAlpha = Math.min(1, view.blend.a);
     ctx.drawImage(nb, S.padX, S.bubbleH, S.size, S.size);
     ctx.globalAlpha = 1;
@@ -413,7 +417,81 @@ const WALK_LOOP = ['step3', 'step4', 'step5', 'step6', 'step7', 'step6', 'step5'
 const WALK_LIFT = { step0: 0, step2: 0.4, step3: 0, step4: 0.5, step5: 1, step6: 0.5, step7: 0 };
 const WALK_FRAME = 0.14; // 每張停留秒數；3→7→3 八張＝左右各一步，約 1.1 秒
 
+// 影片走路（祐 2026-10-31）：圖生影片切出的 7 格循環。人物面向左，往右走時鏡像。
+// 腳步、身體起伏都是影片本身的，程式只負責移動；移動速度＝每格腳往後滑的距離 ÷ 每格秒數，腳才不會在地上打滑
+const VWALK = ['vwalk1', 'vwalk2', 'vwalk3', 'vwalk4', 'vwalk5', 'vwalk6', 'vwalk7'];
+const VWALK_FRAME = 0.16;          // 影片原本約 0.19 秒一格，稍微加快一點比較有精神
+const VWALK_STRIDE = 0.0414;       // 每格前進多少個「身長」（從影片裡著地那隻腳的位移量出來）
+const VWALK_STOPS = ['vwalk1', 'vwalk4']; // 雙腳最靠攏的兩格，停下來時從這裡淡回站姿
+const VWALK_FADE = 0.22;           // 起步、停步淡入淡出的秒數
+
+function useVideoWalk() {
+  return S.settings.walkStyle !== 'classic' && VWALK.every((k) => S.manifest.sprites[k]);
+}
+
+function videoWalkMode() {
+  const wa = S.workArea;
+  const minX = wa.x + S.size * 0.3 - cx();
+  const maxX = wa.x + wa.width - S.size * 0.3 - cx();
+  let dir = Math.random() < 0.5 ? -1 : 1;
+  if (S.pos.x < minX + 120) dir = 1;
+  if (S.pos.x > maxX - 120) dir = -1;
+  const target = clamp(S.pos.x + dir * rand(150, 520), minX, maxX);
+  const speed = (S.size * VWALK_STRIDE) / VWALK_FRAME;
+  const from = view.sprite; // 起步時從原本的樣子淡出
+  const fromFlip = view.flip;
+  let k = 0;
+  let acc = 0;
+  let stopping = false;
+  let endT = -1; // 停在併腳那格後，淡回站姿
+  const sgn = target >= S.pos.x ? 1 : -1;
+  view.flip = sgn > 0; // 影片裡她面向左
+  return {
+    name: 'walk',
+    ownsPosition: true,
+    update(dt, t) {
+      if (!stopping && ((target - S.pos.x) * sgn < 2 || t > 30)) stopping = true;
+      const cur = VWALK[k % VWALK.length];
+      if (endT >= 0) {
+        endT += dt;
+        const a = clamp(endT / VWALK_FADE, 0, 1);
+        view.sprite = cur;
+        view.blend = { sprite: 'idle', a: a * a * (3 - 2 * a), flip: false };
+        view.dy = 0;
+        if (a >= 1) { view.sprite = 'idle'; view.blend = null; view.flip = false; }
+        return endT < VWALK_FADE + 0.15;
+      }
+      acc += dt;
+      while (acc >= VWALK_FRAME) {
+        acc -= VWALK_FRAME;
+        k++;
+        if (stopping && VWALK_STOPS.includes(VWALK[k % VWALK.length])) { endT = 0; break; }
+      }
+      // 到了目標還沒走到併腳那格就再多走半步，腳才不會原地踏步打滑（不超出螢幕）
+      const v = t < VWALK_FADE ? speed * (t / VWALK_FADE) : speed; // 起步從 0 加速
+      moveTo(clamp(S.pos.x + sgn * v * dt, minX, maxX), groundY());
+      const now = VWALK[k % VWALK.length];
+      const next = VWALK[(k + 1) % VWALK.length];
+      view.sprite = now;
+      view.dy = 0;
+      view.rot = 0;
+      if (t < VWALK_FADE && from) {
+        // 起步：原本的站姿蓋在上面慢慢淡掉
+        const a = 1 - t / VWALK_FADE;
+        view.blend = { sprite: from, a: a * a * (3 - 2 * a), flip: fromFlip };
+      } else {
+        // 影片一格 0.16 秒，最後 45% 把下一格淡入，看起來比較連續
+        const p = clamp((acc / VWALK_FRAME - 0.55) / 0.45, 0, 1);
+        view.blend = p > 0 && endT < 0 ? { sprite: next, a: p * p * (3 - 2 * p) } : null;
+      }
+      return true;
+    },
+    exit() { view.blend = null; },
+  };
+}
+
 function walkMode() {
+  if (useVideoWalk()) return videoWalkMode();
   const wa = S.workArea;
   // S.pos 是視窗左上角；角色中心要留在螢幕內
   const minX = wa.x + S.size * 0.3 - cx();

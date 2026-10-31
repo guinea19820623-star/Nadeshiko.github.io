@@ -77,6 +77,16 @@ SPRITES = {
     "step6":      ("Qwen_image_2.1_00022-6.png", "auto", "h610"),
     "step7":      ("Qwen_image_2.1_00022-7.png", "auto", "h610"),
     "step7_b":    ("Qwen_image_2.1_00022-7-1.png", "match"),
+    # 影片走路（祐 2026-10-31）：圖生影片後切成 16 格（walk-src/vwalk/），每 7 格一個循環，取 02～08。
+    # 整組共用同一個縮放與位移（group 模式），影片本身的上下起伏與腳步位置原封不動保留；
+    # 身高以整組最高的那格＝610／660，跟 22 系列站姿一樣高
+    "vwalk1":     ("vwalk02.png", "group:vwalk", 610),
+    "vwalk2":     ("vwalk03.png", "group:vwalk", 610),
+    "vwalk3":     ("vwalk04.png", "group:vwalk", 610),
+    "vwalk4":     ("vwalk05.png", "group:vwalk", 610),
+    "vwalk5":     ("vwalk06.png", "group:vwalk", 610),
+    "vwalk6":     ("vwalk07.png", "group:vwalk", 610),
+    "vwalk7":     ("vwalk08.png", "group:vwalk", 610),
     "pose":       ("1793e431-d033-4131-b125-5722b41a6ba5", "auto"),
     # --- v0.3：新動作（2026-10-21） ---
     "work2":      ("Qwen_image_2.1_00060.png", "front"),
@@ -241,6 +251,24 @@ def main():
     boxes = {}
     fit_refs = {v[1].split(":")[1] for v in SPRITES.values() if v[1].startswith("fit:")}
     canvases = {}
+    # group 模式：同一組（例如影片切出來的連續動作）先一起量，算出共用的縮放與位移
+    groups = {}
+    for key, (name, mode, *extra) in SPRITES.items():
+        if mode.startswith("group:"):
+            path = find(args.src, name)
+            if path:
+                im = cache.get(path) or load(path)
+                cache[path] = im
+                groups.setdefault(mode.split(":")[1], {"target": extra[0], "ims": []})["ims"].append(im)
+    for g in groups.values():
+        boxes_ = []
+        for im in g["ims"]:
+            al = np.array(im)[:, :, 3] > 128
+            ys, xs = np.where(al)
+            boxes_.append((ys.min(), ys.max() + 1, head_x(np.array(im))))
+        h = max(b[1] - b[0] for b in boxes_)
+        g["zoom"] = (g["target"] / scale) / h
+        g["off"] = (CENTER - float(np.median([b[2] for b in boxes_])) * g["zoom"], GROUND - max(b[1] for b in boxes_) * g["zoom"])
     for key in order:
         name, mode, *extra = SPRITES[key]
         fit_ref = mode.split(":")[1] if mode.startswith("fit:") else None
@@ -253,6 +281,10 @@ def main():
             continue
         im = cache.get(path) or load(path)
         cache[path] = im
+        group_off = None
+        if mode.startswith("group:"):
+            g = groups[mode.split(":")[1]]
+            zoom, group_off, mode = g["zoom"], g["off"], "box"
         if mode == "match":
             # 閉眼版的原圖有時被生圖拉長了一點（例如 880 高變 896），等比縮放會讓身高或寬度差一點。
             # 直接把人物外框拉到跟睜眼版輸出前一模一樣的大小與位置，眨眼時身高就不會變
@@ -275,7 +307,7 @@ def main():
             zoom = (float(zoom[1:]) / scale) / im.height
         if zoom != 1.0:
             im = im.convert("RGBa").resize((round(im.width * zoom), round(im.height * zoom)), Image.LANCZOS).convert("RGBA")
-        if match_off is None:
+        if match_off is None and group_off is None:
             im = trim_stray_bottom(im)
         a = np.array(im)
         x0, y0, x1, y1 = im.getbbox()
@@ -295,6 +327,8 @@ def main():
             dx, dy = offsets[key[:-2]]
         if match_off is not None:
             dx, dy = match_off
+        if group_off is not None:
+            dx, dy = group_off
         if fit_ref:
             im, dx, dy = fit_refine(canvases[fit_ref], im, dx, dy)
             x0, y0, x1, y1 = im.getbbox()

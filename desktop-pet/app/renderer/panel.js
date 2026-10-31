@@ -57,6 +57,7 @@ function render() {
   $('volume-out').textContent = `${settings.volume}%`;
   $('bubbleScale').value = settings.bubbleScale;
   $('bubbleScale-out').textContent = `${settings.bubbleScale}%`;
+  $('walkStyle').value = settings.walkStyle || 'video';
   for (const k of ['tiredAt', 'faintAt', 'napAt']) {
     $(k).value = settings[k];
     $(`${k}-out`).textContent = `${settings[k]}%`;
@@ -75,6 +76,7 @@ async function main() {
   bindRange('size', 'size', (v) => `${v}px`);
   $('size').oninput = () => { $('size-out').textContent = `${$('size').value}px`; host.set('size', Number($('size').value)); };
   bindRange('volume', 'volume', (v) => `${v}%`);
+  $('walkStyle').onchange = () => host.set('walkStyle', $('walkStyle').value);
   bindRange('bubbleScale', 'bubbleScale', (v) => `${v}%`);
   bindRange('tiredAt', 'tiredAt', (v) => `${v}%`);
   bindRange('faintAt', 'faintAt', (v) => `${v}%`);

@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
   napAt: 100,
   voiceUrl: 'http://127.0.0.1:8080', // 語音工作室用的 Breeze-TTS 位置與聲音
   voiceName: 'agent_girl',
+  walkStyle: 'video', // video＝影片切出的走路（v0.6.0）；classic＝22 系列
 };
 
 let settings = { ...DEFAULT_SETTINGS };

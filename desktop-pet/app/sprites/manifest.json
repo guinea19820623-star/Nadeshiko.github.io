@@ -408,6 +408,104 @@
     38
    ]
   },
+  "vwalk1": {
+   "file": "vwalk1.png",
+   "source": "vwalk02.png",
+   "bbox": [
+    189,
+    41,
+    549,
+    646
+   ],
+   "head": [
+    369,
+    41
+   ]
+  },
+  "vwalk2": {
+   "file": "vwalk2.png",
+   "source": "vwalk03.png",
+   "bbox": [
+    181,
+    34,
+    532,
+    646
+   ],
+   "head": [
+    356,
+    34
+   ]
+  },
+  "vwalk3": {
+   "file": "vwalk3.png",
+   "source": "vwalk04.png",
+   "bbox": [
+    191,
+    40,
+    543,
+    645
+   ],
+   "head": [
+    367,
+    40
+   ]
+  },
+  "vwalk4": {
+   "file": "vwalk4.png",
+   "source": "vwalk05.png",
+   "bbox": [
+    195,
+    44,
+    549,
+    650
+   ],
+   "head": [
+    372,
+    44
+   ]
+  },
+  "vwalk5": {
+   "file": "vwalk5.png",
+   "source": "vwalk06.png",
+   "bbox": [
+    183,
+    35,
+    536,
+    650
+   ],
+   "head": [
+    360,
+    35
+   ]
+  },
+  "vwalk6": {
+   "file": "vwalk6.png",
+   "source": "vwalk07.png",
+   "bbox": [
+    185,
+    37,
+    537,
+    648
+   ],
+   "head": [
+    361,
+    37
+   ]
+  },
+  "vwalk7": {
+   "file": "vwalk7.png",
+   "source": "vwalk08.png",
+   "bbox": [
+    198,
+    45,
+    551,
+    645
+   ],
+   "head": [
+    374,
+    45
+   ]
+  },
   "pose": {
    "file": "pose.png",
    "source": "1793e431-d033-4131-b125-5722b41a6ba5",
