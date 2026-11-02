@@ -2,11 +2,12 @@
 // 撫子桌寵：畫面與行為
 //
 // 優先序：使用者互動（拖曳、摸頭）> 測試狀態 > Claude 狀態（暈倒 > 睡覺 > 疲憊 > 工作 > 思考 …）> 隨機行為
-/* global PetCore, VoiceCore */
+/* global PetCore, VoiceCore, ClipCore */
 
 const host = window.petHost;
 const core = PetCore;
 const voiceCore = VoiceCore;
+const clipCore = ClipCore;
 
 const canvas = document.getElementById('pet');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -19,6 +20,7 @@ const fxEl = document.getElementById('fx');
 const ACTION_LINES = {
   yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '好耶～', nap: 'Zzz…',
   curious: '嗯？', pose: '♪', happy: '嘿嘿♪', pat: '再摸一下嘛…', drag: '哇！放我下來～', dizzy: '暈…',
+  pray: '願一切順利～', doze: 'Zzz…',
 };
 
 const S = {
@@ -31,6 +33,7 @@ const S = {
   size: 250,
   dpr: 1,
   bitmaps: {},
+  clipInfo: {},     // 動畫片段每一格的 bbox／head（key 跟 bitmaps 一樣）
   pos: { x: 0, y: 0 },
   workArea: { x: 0, y: 0, width: 1280, height: 720 },
   ignoring: true,
@@ -151,7 +154,79 @@ async function buildBitmaps() {
     out[key] = await createImageBitmap(img, { resizeWidth: px, resizeHeight: px, resizeQuality: 'high' });
   }));
   S.bitmaps = out;
+  // 尺寸改了或顯示資源重建：動畫片段的圖也要重做，等下次用到再載入
+  bitmapGen++;
+  S.clipInfo = {};
+  for (const k of Object.keys(clipRes)) delete clipRes[k];
 }
+
+// ---------- 動畫片段（clip）----------
+// 祐用「動畫轉精靈幀」做的動作（manifest.clips）。一組 16 格、全部載入太吃記憶體（特大尺寸時一組就幾十 MB），
+// 所以第一次用到才載入、同時最多留 CLIP_KEEP 組，超過就丟掉最久沒用的。載入完成前呼叫端退回舊的靜態圖。
+const CLIP_KEEP = 5;
+const clipRes = {};   // name → { state: 'loading' | 'ready' | 'failed', keys, used }
+let bitmapGen = 0;    // 每重建一次加一，載到一半的舊結果就丟掉
+
+const clipDef = (name) => (S.manifest && S.manifest.clips && S.manifest.clips[name]) || null;
+const clipKey = (name, i) => `clip:${name}:${i}`;
+const spriteInfo = (key) => S.manifest.sprites[key] || S.clipInfo[key] || S.manifest.sprites.idle;
+
+// 載入完成回傳 true；還在載就先觸發載入、回傳 false
+function ensureClip(name) {
+  const def = clipDef(name);
+  if (!def) return false;
+  const have = clipRes[name];
+  if (have) { have.used = performance.now(); return have.state === 'ready'; }
+  const res = { state: 'loading', keys: [], used: performance.now() };
+  clipRes[name] = res;
+  const gen = bitmapGen;
+  const px = Math.round(S.size * S.dpr);
+  Promise.all(def.frames.map(async (file, i) => {
+    // 不走 imageCache：片段會被丟掉重載，不要讓原圖永遠留在記憶體裡
+    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = `../sprites/clips/${file}`; });
+    return [i, await createImageBitmap(img, { resizeWidth: px, resizeHeight: px, resizeQuality: 'high' })];
+  })).then((list) => {
+    if (gen !== bitmapGen || clipRes[name] !== res) { for (const [, b] of list) b.close(); return; }
+    for (const [i, bmp] of list) {
+      const k = clipKey(name, i);
+      S.bitmaps[k] = bmp;
+      S.clipInfo[k] = { bbox: def.bbox[i], head: def.head[i] };
+      res.keys.push(k);
+    }
+    res.state = 'ready';
+    evictClips();
+  }).catch(() => { res.state = 'failed'; });
+  return false;
+}
+
+// 站著發呆幾乎一直在播，固定留著不丟（不算在 CLIP_KEEP 裡）
+const CLIP_PIN = new Set(['idle']);
+
+function evictClips() {
+  const ready = Object.entries(clipRes).filter(([n, r]) => r.state === 'ready' && !CLIP_PIN.has(n)).sort((a, b) => b[1].used - a[1].used);
+  for (const [name, r] of ready.slice(CLIP_KEEP)) {
+    for (const k of r.keys) { if (S.bitmaps[k]) S.bitmaps[k].close(); delete S.bitmaps[k]; delete S.clipInfo[k]; }
+    delete clipRes[name];
+  }
+}
+
+// 把片段在第 t 秒的畫面放進 view；片段還沒載好（或沒有這個片段）回傳 false，呼叫端用舊素材。
+// opts：base 淡入淡出用的底圖（預設 idle）、fadeIn / fadeOut 秒數、dur 這個動作總長（有給才會淡出）
+function playClip(name, t, opts) {
+  const def = clipDef(name);
+  if (!def || !ensureClip(name)) return false;
+  const f = clipCore.frameAt(def, t);
+  const c = clipCore.compose(f, (i) => clipKey(name, i), t, opts);
+  view.sprite = c.sprite;
+  view.blend = c.blend;
+  return true;
+}
+
+// 片段還在載入中（載入失敗或沒有這個片段就不算）：呼叫端先別換圖，免得閃一下舊素材
+const waitingClip = (name) => !!clipDef(name) && (!clipRes[name] || clipRes[name].state === 'loading');
+
+// 整段只播一次的片段有多長（沒有這個片段回傳 0）
+const clipSeconds = (name) => { const d = clipDef(name); return d ? clipCore.playLength(d) : 0; };
 
 const imageCache = {};
 function loadImage(src) {
@@ -201,7 +276,7 @@ function draw() {
 
 // 目前畫出來的頭頂在哪（視窗內座標），泡泡跟著它
 function headPoint() {
-  const info = S.manifest.sprites[view.sprite] || S.manifest.sprites.idle;
+  const info = spriteInfo(view.sprite);
   const k = S.size / S.manifest.canvas;
   let x = S.padX + info.head[0] * k;
   if (view.flip) x = 2 * cx() - x;
@@ -217,7 +292,7 @@ function alphaAt(x, y) {
 
 // 頭部範圍（用來判斷摸頭）
 function isHead(x, y) {
-  const info = S.manifest.sprites[view.sprite] || S.manifest.sprites.idle;
+  const info = spriteInfo(view.sprite);
   const k = S.size / S.manifest.canvas;
   const top = S.bubbleH + info.bbox[1] * k + view.dy;
   const h = (info.bbox[3] - info.bbox[1]) * k;
@@ -246,8 +321,10 @@ let modeT = 0;
 
 function setMode(m) {
   // 躺著（睡覺、暈倒）要換成別的動作時，先慢慢爬起來；被拎起則直接抓走
-  if (mode && mode.lying && !m.lying && m.name !== 'drag' && m.name !== 'wake') m = wakeMode(mode.body);
+  if (mode && mode.lying && !m.lying && m.name !== 'drag' && m.name !== 'wake') m = wakeMode(mode.wakeFrom || mode.body);
   if (mode && mode.exit) mode.exit();
+  // 上一個動作剛好淡完（疊上去的圖已經全不透明）：直接換成那張，免得換動作的那一格閃回淡出前的畫面
+  if (view.blend && view.blend.a >= 0.95) view.sprite = view.blend.sprite;
   mode = m;
   modeT = 0;
   Object.assign(view, { dx: 0, dy: 0, rot: 0, sx: 1, sy: 1, pivot: 'feet', blend: null });
@@ -276,7 +353,10 @@ function idleMode(duration = rand(5, 12), sprite = 'idle') {
   let doubleBlink = false;
   return {
     name: 'idle',
+    enter() { if (sprite === 'idle') ensureClip('idle'); },
     update(dt, t) {
+      // 新的站著發呆片段：呼吸、眨眼都在影片裡，不再疊程式的呼吸
+      if (sprite === 'idle' && playClip('idle', t)) return t < duration;
       breathe(t);
       if (sprite === 'idle') {
         if (t >= nextBlink) {
@@ -293,6 +373,9 @@ function idleMode(duration = rand(5, 12), sprite = 'idle') {
   };
 }
 
+// 動作 → 動畫片段（manifest.clips）。東張西望有正面與側身兩種，在 poseMode 裡隨機挑
+const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheer', pray: 'pray', nap: 'sleep', doze: 'doze', pose: 'pose', shy: 'shy', happy: 'happy' };
+
 // 定點姿勢（打哈欠、伸懶腰、揮手…）
 function poseMode(kind, duration) {
   const conf = {
@@ -305,12 +388,24 @@ function poseMode(kind, duration) {
     happy: { sprite: 'happy', dur: 1.4 },
     shy: { sprite: 'shy', dur: 2.8 },
     nap: { sprite: 'sleep', dur: Infinity },
+    pray: { sprite: 'idle', dur: 7 },
+    doze: { sprite: 'sit2', dur: rand(25, 50) },
   }[kind];
-  const dur = duration || conf.dur;
+  // 有動畫片段就播片段，沒有（或還沒載好）退回舊的單張圖加程式動作
+  const clip = kind === 'curious' ? (Math.random() < 0.5 ? 'curious' : 'curious2') : POSE_CLIP[kind];
+  const def = clip && clipDef(clip);
+  let dur = duration || conf.dur;
+  if (def && !duration) {
+    if (def.mode === 'once') dur = clipSeconds(clip);                          // 打哈欠、伸懶腰、東張西望：播完就結束
+    else if (Number.isFinite(dur)) dur = Math.max(dur, clipSeconds(clip) + clipCore.loopLength(def)); // 揮手、歡呼：至少一輪
+  }
   return {
     name: kind,
-    enter() { say(kind, 1800, { mute: kind === 'curious' }); },
+    enter() { say(kind, 1800, { mute: kind === 'curious' }); if (def) ensureClip(clip); },
     update(dt, t) {
+      // 片段本身就是動畫，不再疊程式的呼吸、搖晃與跳動
+      if (def && playClip(clip, t, { base: 'idle', fadeIn: 0.2, fadeOut: 0.3, dur: Number.isFinite(dur) ? dur : undefined })) return t < dur;
+      if (def && waitingClip(clip) && t < 1.5) return true; // 載入中沿用前一格，不閃舊圖
       view.sprite = conf.sprite;
       breathe(t, kind === 'nap' ? 0.012 : 0.008, kind === 'nap' ? 4.5 : 3.2);
       if (kind === 'wave') view.rot = Math.sin(t * Math.PI * 4.4) * 0.035;
@@ -339,8 +434,9 @@ function greetMode(period = periodOf()) {
   const key = `greet_${period}`;
   return {
     name: 'greet',
-    enter() { say(key, 2800); },
+    enter() { say(key, 2800); ensureClip('wave'); },
     update(dt, t) {
+      if (playClip('wave', t, { fadeIn: 0.2, fadeOut: 0.3, dur: 2.8 })) return t < 2.8;
       view.sprite = 'wave';
       breathe(t);
       view.rot = Math.sin(t * Math.PI * 4.4) * 0.03;
@@ -349,15 +445,18 @@ function greetMode(period = periodOf()) {
   };
 }
 
-// 坐下等待：跪坐與側坐隨機一種，偶爾眨眼
+// 坐下等待：三種隨機一種——日式跪坐（片段 seiza）、抱膝坐下（片段 seat1）、側坐（片段 sit2），全是新版
 function sitMode() {
-  const kind = Math.random() < 0.5 ? 'sit1' : 'sit2';
+  const kinds = ['seiza', 'seat1', 'sit2'].filter(clipDef);
+  const kind = kinds.length ? kinds[Math.floor(Math.random() * kinds.length)] : 'sit1';
+  const base = kind === 'sit2' ? 'sit2' : 'sit1'; // 片段淡入、還沒載好時用的單張圖（sit1 已換成新跪坐的第 1 格）
   const dur = rand(25, 60);
   return {
     name: 'sit',
-    enter() { say('sit', 2200); },
+    enter() { say('sit', 2200); ensureClip(kind); },
     update(dt, t) {
-      view.sprite = eyes(kind, t, kind === 'sit1' ? 0.4 : 2.1);
+      if (playClip(kind, t, { base, fadeIn: 0.3 })) return t < dur;
+      view.sprite = eyes(base, t, base === 'sit1' ? 0.4 : 2.1);
       breathe(t, 0.007, 3.8);
       // 剛坐下時輕輕沉一下
       if (t < 0.4) view.dy = Math.sin((t / 0.4) * Math.PI) * S.size * 0.012;
@@ -367,12 +466,25 @@ function sitMode() {
 }
 
 // 太久沒人理：側身躺下睡覺，直到有人摸她、點她或 Claude 開始工作
+// 躺下片段播一次，接著在睡著的循環片段反覆（接縫淡 0.4 秒）；回傳 true＝畫好了，或還在載入（沿用前一格）
+function lieView(down, loop, t) {
+  const dd = clipDef(down);
+  const dl = dd ? clipSeconds(down) : 0;
+  if (t < dl && playClip(down, t)) return true;
+  const base = dd && clipRes[down] && clipRes[down].state === 'ready' ? clipKey(down, dd.frames.length - 1) : null;
+  if (playClip(loop, Math.max(0, t - dl), base ? { base, fadeIn: 0.4 } : undefined)) return true;
+  return waitingClip(down) || waitingClip(loop);
+}
+
+// 太久沒人理：躺下側睡（「側睡醒來」倒著播＝躺下，閉眼那幾格循環），直到有人摸她、點她或 Claude 開始工作
 function lieMode() {
   return {
     name: 'nap',
     lying: true,
-    enter() { say('nap', 2200); },
+    wakeFrom: 'nap2',
+    enter() { say('nap', 2200); ensureClip('nap2down'); ensureClip('nap2'); },
     update(dt, t) {
+      if (lieView('nap2down', 'nap2', t)) return true;
       view.sprite = 'sleepside';
       breathe(t, 0.012, 4.8);
       return true;
@@ -380,56 +492,45 @@ function lieMode() {
   };
 }
 
-// 睡醒／暈倒後爬起來：躺著撐起 → 坐起揉眼睛 → 準備站起，然後接回站立
-// from='faint'：暈倒爬起來走另一條路（躺著揉眼 → 坐著揉眼 → 跪坐摸頭髮），側睡醒來走 wake1→3
+// 醒來站起：昏倒 → 「昏倒2+清醒」後半段；額度用完 → 「蓋棉被睡+起床」掀被站起；睡午覺、選單的睡醒 → 「側睡醒來」整段
+// 躺的姿勢跟醒來片段的第 1 格不同時（目前沒有），把 from 加進 FADE_WAKE，開頭用 0.5 秒從當下那格淡過去
+const WAKE_CLIP = { faint2: 'faint2up', nap2: 'nap2up', exhausted: 'blanketup' };
+const FADE_WAKE = new Set();
 function wakeMode(from) {
-  // 每段 [圖, 秒數, 眨眼的開始時間們]：起身途中定時眨 1～2 次再接下一個動作（沒有閉眼版的圖就不眨）
-  const seq = from === 'faint'
-    ? [['faint2', 1.8, [0.6, 1.2]], ['faint3', 2.3, [0.6, 1.3]], ['wake3', 1.8, [0.7]]]
-    : [['wake1', 1.5, []], ['wake2', 2.3, [0.6, 1.3]], ['wake3', 1.8, [0.7]]];
-  const total = seq.reduce((a, [, d]) => a + d, 0);
+  const clip = WAKE_CLIP[from] || 'nap2up';
+  const base = FADE_WAKE.has(from) && view.sprite.startsWith('clip:') ? view.sprite : null;
+  let t0 = -1; // 片段載好那一刻才開始算，免得載入的那一下跳過開頭幾格
   return {
     name: 'wake',
-    enter() { S.lastInteraction = performance.now(); say('wake', 2400); },
+    enter() { S.lastInteraction = performance.now(); say('wake', 2400); ensureClip(clip); },
     update(dt, t) {
-      let acc = 0;
-      for (const [k, d, blinks] of seq) {
-        if (t < acc + d) {
-          const lt = t - acc;
-          const shut = blinks.some((b) => lt >= b && lt < b + 0.16);
-          view.sprite = shut && S.manifest.sprites[`${k}_b`] ? `${k}_b` : k;
-          break;
-        }
-        acc += d;
-      }
-      breathe(t, 0.008, 2.6);
-      return t < total;
+      const T = clipSeconds(clip);
+      if (t0 < 0 && ensureClip(clip)) t0 = t;
+      // 開頭從躺著那格淡入、結尾淡回站姿，兩段用的底圖不同
+      const lt = t - t0;
+      if (t0 >= 0 && playClip(clip, lt, base && lt < 0.5 ? { base, fadeIn: 0.5 } : { base: 'idle', fadeOut: 0.2, dur: T })) return lt < T;
+      if (waitingClip(clip)) return t < 3;
+      return false;
     },
   };
 }
 
-// 在螢幕下緣走路（祐 2026-10-27 的 22 系列）：
-//   起步 22 站姿 → 22-2 → 進入 22-3～22-7 的來回循環（3 4 5 6 7 6 5 4 3 4 …）
-//   要停下來時繼續播到 22-5，再回 22 站姿。往左走就鏡像。
-const WALK_START = ['step0', 'step2'];
-const WALK_LOOP = ['step3', 'step4', 'step5', 'step6', 'step7', 'step6', 'step5', 'step4'];
-// 身體抬起的程度：雙腳交會（22-5）最高、大步幅（22-3、22-7）最低
-const WALK_LIFT = { step0: 0, step2: 0.4, step3: 0, step4: 0.5, step5: 1, step6: 0.5, step7: 0 };
-const WALK_FRAME = 0.14; // 每張停留秒數；3→7→3 八張＝左右各一步，約 1.1 秒
-
-// 影片走路（祐 2026-10-31）：圖生影片切出的 7 格循環。人物面向左，往右走時鏡像。
-// 腳步、身體起伏都是影片本身的，程式只負責移動；移動速度＝每格腳往後滑的距離 ÷ 每格秒數，腳才不會在地上打滑
-const VWALK = ['vwalk1', 'vwalk2', 'vwalk3', 'vwalk4', 'vwalk5', 'vwalk6', 'vwalk7'];
-const VWALK_FRAME = 0.16;          // 影片原本約 0.19 秒一格，稍微加快一點比較有精神
-const VWALK_STRIDE = 0.0414;       // 每格前進多少個「身長」（從影片裡著地那隻腳的位移量出來）
-const VWALK_STOPS = ['vwalk1', 'vwalk4']; // 雙腳最靠攏的兩格，停下來時從這裡淡回站姿
-const VWALK_FADE = 0.22;           // 起步、停步淡入淡出的秒數
-
-function useVideoWalk() {
-  return S.settings.walkStyle !== 'classic' && VWALK.every((k) => S.manifest.sprites[k]);
+// 走路（祐 2026-11-03）：往右「自然走路」、往左「雙手互握優雅漫步」，各一段影片，不用鏡像。
+// 每段：轉身起步（原地）→ 走路循環 → 循環播完一輪再接「轉回正面」停下，最後淡回站姿。
+// 腳步、身體起伏都是影片本身的，程式只負責移動；速度＝影片裡貼地那隻腳每格往後滑的距離（右 30px、左 37px）換算成身長／秒，腳才不會打滑。
+// moving：哪幾格（原圖編號）是在走路、要跟著移動；轉身那幾格原地不動
+const WALKS = {
+  R: { start: 'walkRstart', loop: 'walkR', stop: 'walkRstop', speed: 0.235, moving: [5, 24] },
+  L: { start: 'walkLstart', loop: 'walkL', stop: 'walkLstop', speed: 0.29, moving: [6, 23] },
+};
+// 片段在第 t 秒是原圖的第幾格（從檔名的編號讀）
+function clipFrameNo(name, t) {
+  const def = clipDef(name);
+  const i = clipCore.frameAt(def, t).i;
+  return parseInt(def.frames[i].match(/_(\d+)\./)[1], 10);
 }
 
-function videoWalkMode() {
+function walkMode() {
   const wa = S.workArea;
   const minX = wa.x + S.size * 0.3 - cx();
   const maxX = wa.x + wa.width - S.size * 0.3 - cx();
@@ -437,116 +538,47 @@ function videoWalkMode() {
   if (S.pos.x < minX + 120) dir = 1;
   if (S.pos.x > maxX - 120) dir = -1;
   const target = clamp(S.pos.x + dir * rand(150, 520), minX, maxX);
-  const speed = (S.size * VWALK_STRIDE) / VWALK_FRAME;
-  const from = view.sprite; // 起步時從原本的樣子淡出
-  const fromFlip = view.flip;
-  let k = 0;
-  let acc = 0;
-  let stopping = false;
-  let endT = -1; // 停在併腳那格後，淡回站姿
   const sgn = target >= S.pos.x ? 1 : -1;
-  view.flip = sgn > 0; // 影片裡她面向左
+  const w = WALKS[sgn > 0 ? 'R' : 'L'];
+  if (!clipDef(w.loop)) return idleMode(rand(2, 4)); // 素材不齊就站著
+  let phase = 'start';
+  let t0 = 0; // 這一段開始的時間
+  let stopping = false;
+  let seenEnd = false;
   return {
     name: 'walk',
     ownsPosition: true,
+    enter() { ensureClip(w.start); ensureClip(w.loop); ensureClip(w.stop); view.flip = false; },
     update(dt, t) {
-      if (!stopping && ((target - S.pos.x) * sgn < 2 || t > 30)) stopping = true;
-      const cur = VWALK[k % VWALK.length];
-      if (endT >= 0) {
-        endT += dt;
-        const a = clamp(endT / VWALK_FADE, 0, 1);
-        view.sprite = cur;
-        view.blend = { sprite: 'idle', a: a * a * (3 - 2 * a), flip: false };
-        view.dy = 0;
-        if (a >= 1) { view.sprite = 'idle'; view.blend = null; view.flip = false; }
-        return endT < VWALK_FADE + 0.15;
-      }
-      acc += dt;
-      while (acc >= VWALK_FRAME) {
-        acc -= VWALK_FRAME;
-        k++;
-        if (stopping && VWALK_STOPS.includes(VWALK[k % VWALK.length])) { endT = 0; break; }
-      }
-      // 到了目標還沒走到併腳那格就再多走半步，腳才不會原地踏步打滑（不超出螢幕）
-      const v = t < VWALK_FADE ? speed * (t / VWALK_FADE) : speed; // 起步從 0 加速
-      moveTo(clamp(S.pos.x + sgn * v * dt, minX, maxX), groundY());
-      const now = VWALK[k % VWALK.length];
-      const next = VWALK[(k + 1) % VWALK.length];
-      view.sprite = now;
       view.dy = 0;
       view.rot = 0;
-      if (t < VWALK_FADE && from) {
-        // 起步：原本的站姿蓋在上面慢慢淡掉
-        const a = 1 - t / VWALK_FADE;
-        view.blend = { sprite: from, a: a * a * (3 - 2 * a), flip: fromFlip };
-      } else {
-        // 影片一格 0.16 秒，最後 45% 把下一格淡入，看起來比較連續
-        const p = clamp((acc / VWALK_FRAME - 0.55) / 0.45, 0, 1);
-        view.blend = p > 0 && endT < 0 ? { sprite: next, a: p * p * (3 - 2 * p) } : null;
+      if (phase === 'start') {
+        if (playClip(w.start, t - t0, { base: 'idle', fadeIn: 0.15 })) {
+          if (t - t0 >= clipSeconds(w.start)) { phase = 'loop'; t0 = t; }
+        } else if (waitingClip(w.start) && t < 2) return true; // 載入中沿用前一格
+        else { phase = 'loop'; t0 = t; }
       }
+      if (phase === 'loop') {
+        if (!stopping && ((target - S.pos.x) * sgn < 2 || t > 30)) stopping = true;
+        const def = clipDef(w.loop);
+        // 停下來：等循環播到最後一格、剛要接回第一格時，改接「轉回正面」，步伐才接得上
+        if (stopping) {
+          const i = clipCore.frameAt(def, t - t0).i;
+          if (i === def.frames.length - 1) seenEnd = true;
+          else if (seenEnd) { phase = 'stop'; t0 = t; }
+        }
+        if (phase === 'loop' && !playClip(w.loop, t - t0) && !waitingClip(w.loop)) return false;
+      }
+      if (phase === 'stop') {
+        const T = clipSeconds(w.stop);
+        if (t - t0 >= T || !playClip(w.stop, t - t0, { base: 'idle', fadeOut: 0.3, dur: T })) return false;
+      }
+      const cur = phase === 'start' ? w.start : phase === 'loop' ? w.loop : w.stop;
+      const n = clipDef(cur) && clipRes[cur] && clipRes[cur].state === 'ready' ? clipFrameNo(cur, t - t0) : 0;
+      if (n >= w.moving[0] && n <= w.moving[1]) moveTo(clamp(S.pos.x + sgn * w.speed * S.size * dt, minX, maxX), groundY());
       return true;
     },
     exit() { view.blend = null; },
-  };
-}
-
-function walkMode() {
-  if (useVideoWalk()) return videoWalkMode();
-  const wa = S.workArea;
-  // S.pos 是視窗左上角；角色中心要留在螢幕內
-  const minX = wa.x + S.size * 0.3 - cx();
-  const maxX = wa.x + wa.width - S.size * 0.3 - cx();
-  let dir = Math.random() < 0.5 ? -1 : 1;
-  if (S.pos.x < minX + 120) dir = 1;
-  if (S.pos.x > maxX - 120) dir = -1;
-  const dist = rand(150, 520);
-  const target = clamp(S.pos.x + dir * dist, minX, maxX);
-  const speed = S.size * 0.36; // px / 秒：每一步約前進 0.2 個身長
-  let k = 0; // 播到第幾張
-  let acc = 0;
-  let stopping = false;
-  let standT = -1; // 回到站姿後再停一下才結束
-  const frameAt = (n) => (n < WALK_START.length ? WALK_START[n] : WALK_LOOP[(n - WALK_START.length) % WALK_LOOP.length]);
-  return {
-    name: 'walk',
-    ownsPosition: true,
-    update(dt, t) {
-      const remaining = target - S.pos.x;
-      if (!stopping && (Math.abs(remaining) < 2 || t > 30)) stopping = true;
-      acc += dt;
-      while (acc >= WALK_FRAME && standT < 0) {
-        acc -= WALK_FRAME;
-        // 停步：播到 22-5（雙腳併攏）就收回站姿；還在起步就直接站好
-        if (stopping && (frameAt(k) === 'step5' || k < WALK_START.length)) { standT = 0; break; }
-        k++;
-      }
-      if (standT >= 0) {
-        standT += dt;
-        view.sprite = 'step0';
-        view.blend = null;
-        view.dy = 0;
-        view.rot = 0;
-        return standT < 0.25;
-      }
-      if (!stopping) {
-        const v = k < WALK_START.length ? speed * 0.5 : speed; // 起步慢一點
-        const step = Math.sign(remaining) * Math.min(Math.abs(remaining), v * dt);
-        moveTo(S.pos.x + step, groundY());
-        view.flip = remaining < 0;
-      }
-      const cur = frameAt(k);
-      const next = stopping && cur === 'step5' ? 'step0' : frameAt(k + 1);
-      const p = acc / WALK_FRAME;
-      // 每張最後 40% 把下一張淡入，相鄰兩張很接近，看起來是連續的動作
-      const fade = clamp((p - 0.6) / 0.4, 0, 1);
-      view.sprite = eyes(cur, t, 0.4); // 22-1、22-3-1、22-5-1、22-7-1 閉眼版：走到這幾格剛好眨眼就閉上
-      const shut = view.sprite !== cur && S.manifest.sprites[`${next}_b`];
-      view.blend = fade > 0 ? { sprite: shut ? `${next}_b` : next, a: fade * fade * (3 - 2 * fade) } : null;
-      const lift = WALK_LIFT[cur] + (WALK_LIFT[next] - WALK_LIFT[cur]) * p;
-      view.dy = -lift * S.size * 0.012;
-      view.rot = 0;
-      return true;
-    },
   };
 }
 
@@ -568,18 +600,60 @@ function flyMode() {
   const speed = S.size * 0.85;
   let vx = 0; let vy = 0;
   const kind = pickFly(); // 一趟只用一種姿勢（各自會眨眼），不再兩張輪流
+  // 有起飛／落地片段的姿勢（飛行2：優雅起飛+落地）：先在原地播起飛，飛完回到地面再播落地
+  const up = clipDef(`${kind}up`) ? `${kind}up` : null;
+  const down = clipDef(`${kind}down`) ? `${kind}down` : null;
+  let phase = up ? 'up' : 'fly';
+  let t0 = 0; // 這一段開始的時間
+  let tHover = 0; // 回到地面、等著接落地的那一刻
+  let seenPeak = false;
   return {
     name: 'fly',
     ownsPosition: true,
-    enter() { say('fly', 1400); },
+    enter() {
+      say('fly', 1400);
+      if (clipDef(kind)) ensureClip(kind);
+      if (up) { ensureClip(up); view.flip = pts[0].x < S.pos.x; } // 起飛就面向第一段要飛的方向
+      if (down) ensureClip(down);
+    },
     update(dt, t) {
+      if (phase === 'up') {
+        const T = clipSeconds(up);
+        if (playClip(up, t) && t < T) return true;
+        if (waitingClip(up) && t < 1.5) return true;
+        phase = 'fly'; t0 = t;
+      }
+      if (phase === 'hover') {
+        // 已經回到地面：繼續滑翔，等循環播到最後那一格（檔名編號最大、緊接落地第 1 格）才開始落地，頭的位置才接得上
+        const def = clipDef(kind);
+        const peak = def.frames.reduce((b, f, k) => (parseInt(f.match(/_(\d+)\./)[1], 10) > parseInt(def.frames[b].match(/_(\d+)\./)[1], 10) ? k : b), 0);
+        const at = clipCore.frameAt(def, t - t0).i;
+        if (at === peak) seenPeak = true;
+        // 最後那一格播完（剛離開它）才切落地；最多等一輪循環
+        if (!(seenPeak && at !== peak) && t - tHover < clipCore.loopLength(def) + 0.3) { flyView(kind, t - t0, false); return true; }
+        phase = 'down'; t0 = t;
+      }
+      if (phase === 'down') {
+        const lt = t - t0;
+        const T = clipSeconds(down);
+        if (playClip(down, lt, { base: 'idle', fadeOut: 0.3, dur: T }) && lt < T) {
+          if (view.blend && view.blend.sprite === 'idle') view.blend.flip = false; // 往左飛時落地是鏡像的，淡回不鏡像的站姿
+          return true;
+        }
+        if (waitingClip(down) && lt < 1.5) return true;
+        return false;
+      }
       const p = pts[i];
       const ex = p.x - S.pos.x;
       const ey = p.y - S.pos.y;
       const d = Math.hypot(ex, ey);
       if (d < 6) {
         i++;
-        if (i >= pts.length) { moveTo(S.pos.x, groundY()); return false; }
+        if (i >= pts.length) {
+          moveTo(S.pos.x, groundY());
+          if (down) { phase = clipDef(kind) && clipDef(kind).mode === 'loop' ? 'hover' : 'down'; tHover = t; if (phase === 'down') t0 = t; view.rot = 0; view.dy = 0; return true; }
+          return false;
+        }
         return true;
       }
       // 帶一點慣性，轉彎比較柔
@@ -590,29 +664,43 @@ function flyMode() {
       let ny = S.pos.y + vy * dt + Math.sin(t * 3) * 0.6;
       ny = Math.min(ny, groundY());
       moveTo(S.pos.x + vx * dt, ny);
-      view.sprite = flySprite(kind, t);
+      flyView(kind, t - t0, !up); // 從起飛片段接過來的不用再從站姿淡入
       if (Math.abs(vx) > 8) view.flip = vx < 0;
       view.rot = clamp(vy / speed, -1, 1) * 0.08 * (view.flip ? -1 : 1);
       view.dy = Math.sin(t * 2.4) * S.size * 0.015;
       return t < 40;
     },
+    exit() { view.flip = false; },
   };
 }
 
-// 飛行姿勢：fly3 另有頭髮與蕾絲裙飄逸版，約每 0.5 秒與本體交替（兩張已依髮飾對齊）
-// 55（fly2）祐在重畫更優雅的姿勢，先停用；有素材的才會被抽到
-function pickFly() { const k = ['fly1', 'fly2', 'fly3'].filter(n => S.manifest.sprites[n]); return k[Math.floor(Math.random() * k.length)]; }
+// 飛行姿勢共三種：fly1（54，舊的單張圖，另有頭髮與蕾絲裙飄逸版，約每 0.5 秒與本體交替）、
+// fly3（新的「飛行」片段，自帶起飛）、fly2（「優雅起飛+落地」的滑翔段，另有 fly2up／fly2down）。舊的 53 系列已移除。
+function pickFly() { const k = ['fly1', 'fly2', 'fly3'].filter(n => S.manifest.sprites[n] || clipDef(n)); return k[Math.floor(Math.random() * k.length)]; }
+function flyView(kind, t, fade = true) {
+  if (clipDef(kind) && playClip(kind, t, fade ? { base: S.manifest.sprites[kind] ? kind : 'idle', fadeIn: 0.2 } : undefined)) return;
+  view.blend = null;
+  view.sprite = flySprite(kind, t);
+}
+// 緩降（側身張開雙手）：新的片段在原地循環，往下飄是程式移動位置
+function floatView(t) {
+  if (playClip('float', t)) return;
+  view.blend = null;
+  view.sprite = 'float';
+}
 function flySprite(kind, t) {
-  // 有飄逸版（54-2、53-2）就每 0.5 秒換一次，頭髮跟裙子像在風裡擺動
+  if (!S.manifest.sprites[kind]) return 'idle'; // 只有片段的姿勢，片段還沒載好時先站著
+  // 有飄逸版（54-2）就每 0.5 秒換一次，頭髮跟裙子像在風裡擺動
   if (S.manifest.sprites[`${kind}_hair`] && Math.floor(t / 0.5) % 2 === 1) return `${kind}_hair`;
   return eyes(kind, t, 0.2);
 }
 
 // 坐／趴到別的視窗上：飛過去 → 停著（視窗一動或消失就輕輕飄下來）→ 坐夠了飛回地面。只有 Windows 能取得視窗位置。
-// 三種停法：趴在視窗上緣（lie_top）、坐在視窗下緣（sit_edge／sit_edge2，頭在視窗前面，不怕頂到螢幕上方）、坐在上緣（sit_edge，上緣夠低才用）。
+// 三種停法：趴在視窗上緣（lie_top）、坐在視窗下緣（sit_edge，頭在視窗前面，不怕頂到螢幕上方）、坐在上緣（sit_edge，上緣夠低才用）。
+// 兩個姿勢都有同名的新動畫片段（單張圖＝片段第 1 格，seat 一致），坐著時播片段。
 const PERCH_KINDS = [
   { kind: 'lie', sprites: ['lie_top'], edge: 'top', weight: 1.2, say: 'perch_lie' },
-  { kind: 'sit_bottom', sprites: ['sit_edge', 'sit_edge2'], edge: 'bottom', weight: 1.2, say: 'perch' },
+  { kind: 'sit_bottom', sprites: ['sit_edge'], edge: 'bottom', weight: 1.2, say: 'perch' },
   { kind: 'sit_top', sprites: ['sit_edge'], edge: 'top', weight: 0.4, say: 'perch' },
 ];
 
@@ -703,6 +791,7 @@ function perchMode(opts = {}) {
   return {
     name: 'perch',
     ownsPosition: true,
+    enter() { if (clipDef(flyKind)) ensureClip(flyKind); ensureClip('float'); },
     update(dt, t) {
       phaseT += dt;
       if (phase === 'seek') {
@@ -714,6 +803,7 @@ function perchMode(opts = {}) {
             target = { w: ok.w, v: { ...ok.v } };
             target.v.sprite = ok.v.sprite;
             phase = 'fly'; phaseT = 0;
+            ensureClip(target.v.sprite); // 飛過去的路上先載好坐／趴的片段
           });
         }
         if (phaseT > 20) { why = '偵測視窗逾時'; phase = 'none'; }
@@ -724,7 +814,7 @@ function perchMode(opts = {}) {
         return false;
       }
       if (phase === 'fly') {
-        view.sprite = flySprite(flyKind, t);
+        flyView(flyKind, t);
         view.dy = Math.sin(t * 2.4) * S.size * 0.012;
         if (performance.now() > checkAt) { checkAt = performance.now() + checkEvery; refresh(); }
         const dest = seatPos(target.w, target.v);
@@ -736,10 +826,13 @@ function perchMode(opts = {}) {
       }
       if (phase === 'sit') {
         sitT += dt;
+        view.blend = null;
         const base = target.v.sprite;
-        view.sprite = eyes(base, sitT, 0.8);
-        breathe(sitT, base === 'lie_top' ? 0.01 : 0.006, 3.8);
-        view.rot = base === 'lie_top' ? 0 : Math.sin(sitT * 1.1) * 0.006;
+        if (!playClip(base, sitT)) {
+          view.sprite = eyes(base, sitT, 0.8);
+          breathe(sitT, base === 'lie_top' ? 0.01 : 0.006, 3.8);
+          view.rot = base === 'lie_top' ? 0 : Math.sin(sitT * 1.1) * 0.006;
+        }
         if (performance.now() > checkAt) { checkAt = performance.now() + checkEvery; refresh(); }
         if (sitT > dur) { phase = 'leave'; phaseT = 0; }
         return true;
@@ -747,7 +840,7 @@ function perchMode(opts = {}) {
       if (phase === 'drop') {
         // 視窗動了或不見了：不黏過去，慢慢飄落到地面
         if (phaseT < 0.05) { vy = 0; say('drop', 2200); }
-        view.sprite = 'float';
+        floatView(phaseT);
         vy = Math.min(vy + S.size * 0.9 * dt, S.size * 0.55);
         const ny = Math.min(S.pos.y + vy * dt, groundY());
         moveTo(S.pos.x + Math.sin(phaseT * 1.6) * S.size * 0.1 * dt, ny);
@@ -756,7 +849,7 @@ function perchMode(opts = {}) {
         return phaseT < 20;
       }
       // leave：飛回地面
-      view.sprite = flySprite(flyKind, t);
+      flyView(flyKind, t);
       const dest = { x: S.pos.x + side * 40, y: groundY() };
       dest.x = clamp(dest.x, S.workArea.x - cx() + S.size * 0.3, S.workArea.x + S.workArea.width - cx() - S.size * 0.3);
       if (go(dest, dt, S.size * 1.0)) return false;
@@ -776,17 +869,26 @@ function fallMode(after) {
   const startY = S.pos.y;
   let landed = -1;
   let dizzy = false;
-  const gentle = !!(mode && mode.name === 'perch'); // 從視窗邊緣下來：飄著落地，不會暈
+  // 從視窗邊緣（坐著、趴著）或飛行中被打斷：不是被丟下來的，用「緩降」姿勢飄著落地，不會暈
+  const gentle = !!(mode && (mode.name === 'perch' || mode.name === 'fly'));
   return {
     name: 'fall',
     ownsPosition: true,
+    enter() {
+      // 先把落地要用的片段載好（掉下來的這段時間通常就夠了）
+      if (gentle) { ensureClip('float'); return; }
+      const drop = groundY() - S.pos.y;
+      if (drop > S.size * 2.2) ensureClip('tumble');
+      else if (drop > S.size * 0.15) ensureClip('land');
+    },
     update(dt, t) {
       if (landed < 0) {
         vy += (gentle ? 700 : 2600) * dt;
         if (gentle) vy = Math.min(vy, S.size * 1.2);
         const ny = Math.min(S.pos.y + vy * dt, groundY());
         moveTo(S.pos.x, ny);
-        view.sprite = gentle ? 'float' : dragKind;
+        if (gentle) floatView(t);
+        else view.sprite = dragKind;
         view.dx = dx0 * Math.exp(-t * 9);
         view.dy = dy0 * Math.exp(-t * 9);
         view.rot = rot0 * Math.exp(-t * 6);
@@ -798,28 +900,72 @@ function fallMode(after) {
         return true;
       }
       const lt = t - landed;
-      // 落地的壓扁回彈
-      const squash = Math.exp(-lt * 7) * Math.cos(lt * 22) * 0.07;
-      view.sy = 1 - squash;
-      view.sx = 1 + squash * 0.6;
       view.rot = 0;
       view.dx = 0;
       view.dy = 0;
-      if (dizzy) { view.sprite = lt < 1.8 ? 'faint' : 'curious'; return lt < 2.6; }
-      view.sprite = 'curious';
-      return lt < 0.9;
+      // 高處摔下：摔在地上 → 撐起來 → 站好（「高處摔倒再爬起」第 3–25 格，約 4.6 秒）
+      if (dizzy) {
+        const T = clipSeconds('tumble');
+        if (T && playClip('tumble', lt, { base: 'idle', fadeOut: 0.2, dur: T })) return lt < T;
+        if (waitingClip('tumble') && lt < 1) return true; // 載入中沿用前一格，不閃舊圖
+        // 沒有片段：用昏倒2 側躺一下，再淡回站姿
+        const LIE = 1.4; const UP = 0.5;
+        if (playClip('faintb', lt, { base: 'idle', fadeOut: UP, dur: LIE + UP })) return lt < LIE + UP;
+        if (waitingClip('faintb') && lt < LIE) return true; // 載入中沿用前一格，不閃舊圖
+        view.blend = null;
+        view.sprite = 'idle';
+        return lt < 0.3;
+      }
+      // 低處落下：著地、蹲下緩衝、站起來（「低處落地」第 13–25 格，約 2 秒）；只被拎起一點點就不播
+      if (!gentle && groundY() - startY > S.size * 0.15) {
+        const T = clipSeconds('land');
+        if (T && playClip('land', lt, { base: 'idle', fadeOut: 0.2, dur: T })) return lt < T;
+      }
+      view.blend = null;
+      view.sprite = 'idle';
+      // 輕輕落地（飄下來）：小小的壓扁回彈，站穩就接下一個動作
+      if (gentle) {
+        const squash = Math.exp(-lt * 7) * Math.cos(lt * 22) * 0.05;
+        view.sy = 1 - squash;
+        view.sx = 1 + squash * 0.6;
+        return lt < 0.3;
+      }
+      // 片段還沒載好、或只是輕輕放下：用站姿蹲一下（0.1 秒蹲下、停 0.15 秒、0.3 秒站直）
+      const k = lt < 0.1 ? lt / 0.1 : lt < 0.25 ? 1 : Math.max(0, 1 - (lt - 0.25) / 0.3);
+      const e = k * k * (3 - 2 * k);
+      view.sy = 1 - 0.14 * e;
+      view.sx = 1 + 0.07 * e;
+      return lt < 0.6;
     },
     exit() { if (after) setTimeout(after, 0); },
   };
 }
 
 // Claude 狀態對應的姿勢（持續到狀態改變）
+// Claude 狀態 → 動畫片段（持續型：先播開頭一次，之後在循環範圍反覆）。
+// 等你確認用「拿平板揮手」那組、打招呼用單純揮手；暈倒只用「昏倒2」（側躺），舊的新版「昏倒」祐決定不用。
+// 睡覺（5 小時用完）照祐的指定仍用舊的側睡 62。
+const CLAUDE_CLIP = { thinking: 'think', working: 'work', waiting: 'waitwave', hello: 'wave', done: 'cheer', error: 'confused' };
+
 function claudeMode(body) {
+  // 暈倒：「昏倒2+清醒」倒著播加速＝倒下，閉眼那 10 格循環，醒來正著播後半段（取代舊 24 系列）
+  // 額度用完：「蓋棉被睡+起床」倒著播＝鑽進棉被躺下，閉眼那 12 格循環，醒來正著播掀被站起
+  const clip = CLAUDE_CLIP[body];
   return {
     name: `claude:${body}`,
     body,
+    wakeFrom: body === 'faint' ? 'faint2' : body,
     lying: body === 'exhausted' || body === 'faint',
+    enter() {
+      if (clip) ensureClip(clip);
+      if (body === 'tired') { ensureClip('tired'); ensureClip('yawn'); }
+      if (body === 'faint') { ensureClip('faint2down'); ensureClip('faint2'); }
+      if (body === 'exhausted') { ensureClip('blanketdown'); ensureClip('blanket'); }
+    },
     update(dt, t) {
+      if (clip && playClip(clip, t, { base: 'idle', fadeIn: 0.25 })) return true;
+      if (body === 'faint' && lieView('faint2down', 'faint2', t)) return true;
+      if (body === 'exhausted' && lieView('blanketdown', 'blanket', t)) return true;
       switch (body) {
         case 'thinking':
           view.sprite = eyes('think', t);
@@ -849,8 +995,12 @@ function claudeMode(body) {
           view.rot = Math.sin(t * 1.7) * 0.02;
           break;
         case 'tired': {
-          // 偶爾打個哈欠
+          // 偶爾打個哈欠（新的哈欠片段約 3 秒，從第 11 秒開始播，剛好接在 14 秒循環結束前）
           const cyc = t % 14;
+          if (cyc > 11 && playClip('yawn', cyc - 11, { base: 'tired', fadeIn: 0.25, fadeOut: 0.3, dur: 3 })) break;
+          // 新的疲憊站姿片段：先揉一次眼睛，之後在睏倦站姿循環
+          if (playClip('tired', t)) break;
+          view.blend = null; // 剛打完哈欠的淡出殘留要清掉
           view.sprite = cyc > 11.5 ? 'yawn' : eyes('tired', t, 0.9);
           breathe(t, 0.012, 4.6);
           break;
@@ -875,17 +1025,27 @@ function claudeMode(body) {
 const drag = { down: null, active: false, grip: null, swing: 0, swingV: 0, vx: 0 };
 const stroke = { lastX: null, dir: 0, flips: 0, firstAt: 0, lastAt: 0 };
 
-// 拎起有兩種姿勢（抱起來的 drag、歪著身子的 drag2），每次拎起隨機挑一種，整段都用同一種，各自會眨眼
+// 拎起有兩種（新版：乖乖被拎著 drag、掙扎亂踢 drag2），每次拎起隨機挑一種，整段都用同一種
+// 兩組片段建置時都把頭頂對到同一點（build_clips.py 的 HANG），所以游標一直在後頸附近
 let dragKind = 'drag';
 function dragMode() {
   dragKind = S.manifest.sprites.drag2 && Math.random() < 0.5 ? 'drag2' : 'drag';
   return {
     name: 'drag',
     ownsPosition: true,
-    enter() { say('drag', 1500); },
+    enter() { say('drag', 1500); ensureClip(dragKind); },
     update(dt, t) {
-      view.sprite = eyes(dragKind, t, 0.5);
       view.pivot = 'grip';
+      if (playClip(dragKind, t)) {
+        // 片段本身就在晃，只疊被甩動的彈簧擺動
+        const target = clamp(-drag.vx * 0.0008, -0.35, 0.35);
+        drag.swingV += ((target - drag.swing) * 60 - drag.swingV * 6) * dt;
+        drag.swing += drag.swingV * dt;
+        view.rot = drag.swing;
+        drag.vx *= 0.85;
+        return true;
+      }
+      view.sprite = eyes(dragKind, t, 0.5);
       // 第二種姿勢頭的位置不同，位移補回讓頭對著游標
       if (dragKind === 'drag2') {
         const a = S.manifest.sprites.drag;
@@ -955,9 +1115,13 @@ function onPointerUp(e) {
     const nowT = performance.now();
     clicks = clicks.filter((c) => nowT - c < 5000);
     clicks.push(nowT);
-    if (clicks.length >= 3) { clicks = []; hearts(3); setMode(poseMode('shy')); return; }
-    hearts(2);
-    setMode(poseMode('happy'));
+    const shy = clicks.length >= 3;
+    if (shy) clicks = [];
+    hearts(shy ? 3 : 2);
+    const react = () => setMode(poseMode(shy ? 'shy' : 'happy'));
+    // 飛行中、坐在視窗邊緣被點到：人不能站在空中反應，先飄落到地面再做
+    if (!onGround()) { if (mode && mode.name !== 'fall') setMode(fallMode(react)); return; }
+    react();
   }
 }
 
@@ -978,6 +1142,9 @@ function detectStroke(x) {
   stroke.lastX = x;
   if (stroke.flips >= 3 && (!mode || mode.name !== 'pat')) {
     S.lastInteraction = now;
+    stroke.flips = 0;
+    // 在空中被摸頭：一樣先飄落再撒嬌
+    if (!onGround()) { if (mode && mode.name !== 'fall') setMode(fallMode(() => setMode(patMode()))); return; }
     setMode(patMode());
   }
 }
@@ -987,11 +1154,14 @@ function patMode() {
   let lastHeart = 0;
   return {
     name: 'pat',
-    enter() { say('pat', 2000); hearts(3); },
+    enter() { say('pat', 2000); hearts(3); ensureClip('pat'); },
     update(dt, t) {
-      view.sprite = 'pat';
-      breathe(t, 0.01, 2.2);
-      view.rot = Math.sin(t * 5) * 0.015;
+      // 新的摸頭片段：先閉上眼、雙手合在胸前，之後循環；沒載好才用單張圖加程式搖晃
+      if (!playClip('pat', t, { fadeIn: 0.15 })) {
+        view.sprite = 'pat';
+        breathe(t, 0.01, 2.2);
+        view.rot = Math.sin(t * 5) * 0.015;
+      }
       if (t - lastHeart > 0.9 && performance.now() - stroke.lastAt < 600) { hearts(1); lastHeart = t; }
       if (t > 3.5 && performance.now() - stroke.lastAt < 1300) { freeQueue = () => poseMode('shy'); return false; } // 摸太久會害羞
       return performance.now() - stroke.lastAt < 1300;
@@ -1023,7 +1193,7 @@ function claudeState() {
 }
 
 const INTERACTIONS = new Set(['drag', 'fall', 'pat', 'happy']);
-const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet']);
+const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze']);
 
 function chooseFree() {
   const s = S.settings;
@@ -1031,6 +1201,8 @@ function chooseFree() {
   if (!s.random) return idleMode(Infinity);
   // 冷落太久就睡午覺，有人來（滑鼠、Claude）就醒
   if (idleFor > 5 * 60 && onGround()) return lieMode();
+  // 坐著打盹（新動作）：冷落兩分鐘以上，有機會坐下打瞌睡，再久就會側躺睡午覺
+  if (idleFor > 120 && onGround() && clipDef('doze') && Math.random() < 0.35) return poseMode('doze');
   if (idleFor > 80 && onGround() && Math.random() < 0.7) return sitMode();
   const hour = new Date().getHours();
   const late = hour >= 23 || hour < 6;
@@ -1043,6 +1215,7 @@ function chooseFree() {
     wave: 5,
     cheer: 4,
     pose: 8,
+    pray: clipDef('pray') ? 3 : 0,
     perch: s.perch && onGround() ? 5 : 0,
   });
   if (k === 'walk') return onGround() ? walkMode() : fallMode();
@@ -1214,7 +1387,7 @@ async function start() {
   host.onSummon(() => {
     S.lastInteraction = performance.now();
     if (mode && mode.name === 'drag') return;
-    setMode(mode && mode.lying ? wakeMode(mode.body) : (onGround() ? poseMode('wave') : fallMode()));
+    setMode(mode && mode.lying ? wakeMode(mode.wakeFrom || mode.body) : (onGround() ? poseMode('wave') : fallMode()));
   });
   // 保險：滑鼠停在她身上時，每秒重新宣告一次「接住滑鼠」，萬一狀態不同步也會自己修好
   setInterval(() => { if (S.hover && !S.ignoring && !drag.active) host.setIgnore(false); }, 1000);

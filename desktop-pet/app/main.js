@@ -35,7 +35,6 @@ const DEFAULT_SETTINGS = {
   napAt: 100,
   voiceUrl: 'http://127.0.0.1:8080', // 語音工作室用的 Breeze-TTS 位置與聲音
   voiceName: 'agent_girl',
-  walkStyle: 'video', // video＝影片切出的走路（v0.6.0）；classic＝22 系列
 };
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -469,6 +468,7 @@ const ACTIONS = [
   ['walk', '走一走'], ['fly', '飛一圈'], ['yawn', '打哈欠'], ['stretch', '伸懶腰'],
   ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '睡午覺'],
   ['sit', '坐下休息'], ['perch', '坐到視窗邊緣'], ['shy', '害羞'], ['wake', '睡醒爬起來'],
+  ['pray', '禱告'], ['doze', '坐著打盹'],
 ];
 
 function menuTemplate() {

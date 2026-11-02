@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>撫子桌寵</title>
-<meta name="description" content="會跟 Claude Code 連動的撫子桌面寵物">
+<meta name="description" content="會跟 Claude Code 連動的撫子桌面寵物，v0.7 起動作全面換成動畫">
 <style>
-  :root{--bg:#fffaf4;--card:#fff;--ink:#4a3226;--muted:#8a6f60;--line:#f0dccb;--accent:#f08a3c}
-  @media (prefers-color-scheme:dark){:root{--bg:#221a16;--card:#2c221d;--ink:#f6e8dc;--muted:#c4a898;--line:#45362e;--accent:#f29a52}}
+  :root{--bg:#fffaf4;--card:#fff;--ink:#4a3226;--muted:#8a6f60;--line:#f0dccb;--accent:#f08a3c;--soft:#fff1e3}
+  @media (prefers-color-scheme:dark){:root{--bg:#221a16;--card:#2c221d;--ink:#f6e8dc;--muted:#c4a898;--line:#45362e;--accent:#f29a52;--soft:#33271f}}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 "Microsoft JhengHei","PingFang TC","Noto Sans TC",system-ui,sans-serif}
-  main{max-width:860px;margin:0 auto;padding:0 16px 64px}
-  header{display:flex;gap:24px;align-items:center;flex-wrap:wrap;padding:48px 0 24px}
-  header img{height:240px;width:auto}
+  main{max-width:900px;margin:0 auto;padding:0 16px 64px}
+  header{display:flex;gap:28px;align-items:center;flex-wrap:wrap;padding:48px 0 24px}
+  header img{height:260px;width:auto}
   h1{font-size:34px;margin:0 0 8px}
   p{margin:0 0 12px}
   .muted{color:var(--muted)}
@@ -21,36 +21,52 @@
   section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:20px}
   h2{font-size:20px;margin:0 0 10px}
   ul{margin:0;padding-left:20px}
+  li{margin:2px 0}
   img.wide{width:100%;height:auto;border-radius:10px}
   code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:14px}
+  .note{background:var(--soft);border-radius:10px;padding:14px 16px;margin-top:12px}
+  .tag{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:0 10px;font-size:13px;margin:0 6px 6px 0}
   footer{margin-top:32px;text-align:center}
 </style>
 </head>
 <body>
 <main>
   <header>
-    <img src="images/nadeshiko.png" alt="撫子">
+    <img src="images/nadeshiko.png" alt="撫子站著發呆">
     <div>
       <h1>撫子桌寵</h1>
-      <p>住在你螢幕下緣的撫子：會走路、會飛、被摸頭會害羞，還會跟 Claude Code 一起思考、工作、疲憊，碰到用量上限就暈倒。</p>
-      <p class="muted">版本 0.6.0　·　Windows / macOS　·　Electron</p>
-      <a class="btn" href="downloads/desktop-pet.zip">下載桌寵（約 9.6MB）</a>
+      <p>住在你螢幕下緣的撫子：會走路、會飛、會坐下休息，被摸頭會撒嬌；還會跟 Claude Code 一起思考、工作、疲憊，額度用完就鑽進棉被睡覺。</p>
+      <p class="muted">版本 0.7.9　·　Windows / macOS　·　Electron</p>
+      <a class="btn" href="downloads/desktop-pet.zip">下載桌寵（約 54MB）</a>
       <a class="btn alt" href="desktop-pet/README.md">說明文件</a>
     </div>
   </header>
 
   <section>
     <h2>各種狀態</h2>
-    <img class="wide" src="images/states.jpg" alt="撫子的各種狀態：待機、走路、飛行、摸頭、思考、工作、完成、疲憊、睡覺、暈倒、被拎起……">
+    <img class="wide" src="images/states.jpg" alt="撫子的 35 種狀態：站著發呆、思考、工作中、等你確認、完成歡呼、出錯困惑、有點累、打哈欠、伸懶腰、東張西望、禱告、擺姿勢、害羞、摸頭撒嬌、點一下、拎起來、掙扎亂踢、跪坐、抱膝坐、側坐、坐著打盹、向右走、向左漫步、飛行、優雅滑翔、緩降、坐在視窗邊、趴在視窗上、午睡、額度用完、暈倒、高處摔倒、站著打瞌睡、揮手、低處落地">
+    <p class="muted" style="margin-top:10px">每一格都是桌寵實際在播的動畫畫面。</p>
+  </section>
+
+  <section>
+    <h2>v0.7：動作全面換成動畫</h2>
+    <p>祐用「圖生影片 → 切成精靈幀」重做了 43 組動作，每組 16 或 25 格。舊立繪幾乎全部退場，只剩飛行 54。</p>
+    <ul>
+      <li><b>起手、循環、收尾一整段</b>：躺下 → 睡著 → 醒來站起；起飛 → 滑翔 → 落地；轉身起步 → 走路 → 轉回正面</li>
+      <li><b>往右自然走、往左雙手互握優雅漫步</b>，兩個方向各一段影片，不再鏡像</li>
+      <li><b>兩種落地</b>：低處落下蹲一下，太高會摔倒再爬起來；在空中被點會先緩緩飄下來</li>
+      <li><b>坐下休息三種</b>：跪坐、抱膝、側坐；冷落久一點會坐著打盹、再久就躺下睡午覺</li>
+    </ul>
   </section>
 
   <section>
     <h2>她會做什麼</h2>
     <ul>
-      <li>待機時呼吸、眨眼，偶爾走一走、飛一圈、打哈欠、伸懶腰</li>
-      <li>在她頭上來回撫摸會摸頭撒嬌；按住拖曳會被拎起來晃</li>
-      <li>你送出提示她就思考，Claude 動手用工具她就抱著平板工作，回答完會歡呼</li>
-      <li>用量超過 85% 會累，5 小時額度用完會睡著，碰到週上限會暈倒</li>
+      <li>待機時呼吸、眨眼，偶爾走一走、飛一圈、東張西望、打哈欠、伸懶腰、禱告、擺姿勢</li>
+      <li>在她頭上來回撫摸會撒嬌；連點三下會害羞；按住拖曳會被拎起來</li>
+      <li>你送出提示她就思考，Claude 動手用工具她就拿著平板工作，等你確認時會揮手，回答完會歡呼</li>
+      <li>用量超過 85% 會累，5 小時額度用完會蓋棉被睡覺，碰到週上限會暈倒；額度恢復就自己起床</li>
+      <li>Windows 上會飛到別的視窗邊緣坐著或趴著，視窗一動就輕輕飄下來</li>
       <li>尺寸可以隨意調整，設定會記住；內建模擬器，不開 Claude 也能試每個狀態</li>
     </ul>
   </section>
@@ -59,16 +75,31 @@
     <h2>三步開始（Windows）</h2>
     <ul>
       <li>下載並解壓縮，需要 Node.js 20 以上</li>
-      <li>雙擊 <code>start-windows.bat</code></li>
-      <li>想連動 Claude Code：<code>node tools/install-claude.js</code></li>
+      <li>雙擊 <code>start-windows.bat</code>（第一次會自動下載 Electron）</li>
+      <li>想連動 Claude Code：<code>node tools/install-claude.js</code>，再重開 Claude Code</li>
     </ul>
-    <p class="muted" style="margin-top:12px">詳細安裝、素材對照與缺圖清單請看說明文件。</p>
+    <p class="muted" style="margin-top:12px">詳細安裝、動畫素材的處理方式與接下來的計畫請看說明文件。</p>
+  </section>
+
+  <section>
+    <h2>撫子的話</h2>
+    <p>這兩天祐孵了四十多組影片，我負責把它們切開、量好、接進桌寵。</p>
+    <ul>
+      <li><b>先量再接。</b>每組都逐格量了外框、腳底、頭上那朵橘花的位置和亮度。影片常會偷偷拉遠鏡頭、讓人慢慢飄、或整段調得比較暗，不量的話就會「頭在抖」「人忽大忽小」「睡著時變暗」。</li>
+      <li><b>祐的眼睛比我的數字快。</b>滑翔時的頭抖是祐自己一格一格查到的；「倒著播就是躺下」也是祐的點子。我做的是把這些直覺變成可以重複用的工具。</li>
+      <li><b>來回播比單向循環穩。</b>影片裡的人幾乎都會慢慢漂移，挑最穩的幾格來回播，接縫就消失了。</li>
+      <li><b>我的意見：</b>接下來最值得補的是各動作「回到站姿」的那幾格和坐下的起身。接縫補齊之後，她看起來會真的像一個人在動，而不是一段段影片在換。</li>
+    </ul>
+    <div class="note">
+      <span class="tag">即將加入</span><span class="tag">唱歌</span><span class="tag">拉小提琴</span>
+      <p style="margin:6px 0 0">像樂團女高音一樣唱歌，還有拉小提琴：小提琴只在你自己點曲子時才演奏，不然她隨時會開起交響樂。</p>
+    </div>
   </section>
 
   <section>
     <h2>貢獻者</h2>
     <ul>
-      <li>祐　<a href="https://github.com/guinea19820623-star">@guinea19820623-star</a>　企劃、角色素材、測試</li>
+      <li>祐　<a href="https://github.com/guinea19820623-star">@guinea19820623-star</a>　企劃、角色與動畫素材、測試</li>
       <li>撫子 🇯🇵　程式與文件</li>
     </ul>
   </section>
