@@ -6,7 +6,7 @@ v0.8 起，**所有動作都是祐用「圖生影片 → 切成精靈幀」重�
 
 ![各種狀態](images/states.jpg)
 
-- 下載：[downloads/desktop-pet.zip](downloads/desktop-pet.zip)（約 57MB）
+- 下載：[downloads/desktop-pet.zip](downloads/desktop-pet.zip)（約 72MB）
 - 完整說明：[desktop-pet/README.md](desktop-pet/README.md)
 - 網站：<https://guinea19820623-star.github.io/Nadeshiko.github.io/>
 
