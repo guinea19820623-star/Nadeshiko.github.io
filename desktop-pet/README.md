@@ -1,4 +1,4 @@
-# 撫子桌寵 v0.8.0
+# 撫子桌寵 v0.8.1
 
 住在螢幕下緣的撫子。她會走路、飛一圈、坐下休息、被摸頭會撒嬌，也跟 Claude Code 連動：你送出提示她就開始想，Claude 動手用工具她就拿著平板工作，回答完會歡呼；用量超過 85% 會累，5 小時額度用完會鑽進棉被睡覺，碰到週上限會暈倒。
 
@@ -9,6 +9,7 @@ v0.7 起，幾乎所有動作都換成祐用「圖生影片 → 切成精靈幀�
 > 這張圖是從桌寵實際在播的動畫格裡挑出來排的，大小與位置跟畫面上一樣。
 
 ### 更新紀錄
+- **v0.8.1（2026-11-03）** 新增**提屈膝禮**：雙手拎起裙擺、交叉雙腳、屈膝低頭，再起身回站姿（約 4 秒）。開機和喚醒（快捷鍵、工作列小圖示）時用它打招呼，跨過時段時還是揮手；右鍵選單與控制面板的「動作」也有。**打哈欠**、**東張西望（正面）**換成幀數加倍的新版（7×7＝49 格，約 5 秒與 4 秒），最後一格就是站姿，不用再淡出、不會有重影。疲憊時的哈欠改從每輪第 9 秒開始，讓 5 秒的新哈欠完整播完。**揮手**也換成 49 格新版（舉手 → 揮手 → 放下，剛好 4 秒），打招呼、揮手、Claude 的打招呼狀態都整段播一次。新增**芭蕾**兩段：旋轉（約 5 秒，轉的時候雙手舉過頭，縮到 ×0.96 才不出畫布）、阿拉貝斯克（約 4 秒）；右鍵選單與控制面板的「動作」有「芭蕾：旋轉」「芭蕾：阿拉貝斯克」，隨機行為也偶爾跳一段（不用配樂）。**完成歡呼、點一下開心跳、掙扎亂踢**也換成 49 格新版：Claude 完成時先播一次再循環原地跳（14–24 格），自己歡呼整段播一次、最後放下手回站姿；點一下是合掌冒愛心小跳（只用 1–40 格，約 3.3 秒）；掙扎亂踢只用離地的格（5–11 播一次、12–29 循環）。跳得高的兩段在跳起來那段縮到 ×0.96，掙扎亂踢 ×0.95，手和頭髮才不會出畫布。**高處摔倒**換成 49 格新版：著地 → 跌坐發暈揉頭 → 撐地爬起 → 站好（約 3.4 秒）。兩種飛行的 49 格版試過剪接（影片模型把上下浮動做成一跳一跳，只挑腳離地的 3 格來回播），但飛的時候人看起來縮水、優雅那段像被從側邊拎起來，祐決定先用回舊的 25 格飛行，飛行姿勢之後重做（剪接設定留在 `build_clips.py` #61、#62，`wired=False`）。**修正：躺著（午睡、額度用完、暈倒）時螢幕休眠再喚醒，她會瞬間彈起來再躺回去**：喚醒後會重建所有圖，動畫片段的格被清掉重載，重載好之前畫面找不到正在播的那格，就退回站姿圖。現在重建時先留著畫面上正在用的那格，重載好再換（Ctrl＋滾輪縮放也走同一條，一併修好）。那格的頭頂位置也一起留著，頭上泡泡（例如「Zzz…」）才不會跳到站姿的頭頂閃一下。
 - **v0.8.0（2026-11-03）** **全部換成新版動畫，舊立繪完全退場。**新增**指揮**（祐的「指揮」影片，7×7＝49 格）：1–3 舉起指揮棒、4–33 指揮（5 組拍子，打拍子有方向，所以單向循環不來回播）、34–49 放下棒子回站姿；右鍵選單「指揮」、控制面板「指揮」區列出 `app/music/conduct/` 的管弦樂。移除最後一張舊立繪飛行 54（含閉眼版與頭髮飄逸版），飛行只剩新版兩種（飛行+落地、優雅起飛+落地）。片段還沒載好時頂一下的單張圖（思考、工作、打哈欠、伸懶腰、揮手、歡呼、東張西望、出錯、站著打瞌睡）也全部改由新動畫的格輸出，舊的閉眼版（`*_b`）與沒用到的舊圖刪除，`app/sprites/` 從 49 張剩 31 張；舊立繪處理工具 `tools/prepare_sprites.py` 一併移除。音樂檔不放進 GitHub：`app/music/` 只附說明，曲子由使用者自己放（祐的電腦上有克羅采奏鳴曲與命運交響曲，出處與授權寫在各資料夾的「出處與授權.txt」）。
 - **v0.7.12（2026-11-03）** 新增**拉小提琴**（祐的「小提琴新版」影片，幀數加倍的 7×7＝49 格、每格約 0.1 秒，取代先做的 25 格版）：1–14 拿起琴、架上肩、舉弓，15–48 拉琴（來回播，倒著播剛好是弓往回拉），收琴把 14→1 倒著播；第 7 格琴是半透明的、最後一格不用，都跳過。跟唱歌一樣只在自己點曲子時才演出：右鍵選單「小提琴」、控制面板「小提琴」區列出 `app/music/violin/` 的樂曲；拉琴時點她一下就收琴。唱歌和小提琴共用同一套程式（`performMode`）。坐姿循環照祐實看再調：開頭那格先停住幾秒再動一次，眨眼、點頭、擺頭不再那麼頻繁——跪坐 13 停 4.6 秒再 14–16 眨眼（一輪約 5.6 秒）、雙手放膝 8 停 1.9 秒再 9–12 擺頭（約 3.5 秒）、抱膝打盹 9 停 4.6 秒再 10–13 點頭（約 6 秒）；`build_clips.py` 的多段 `seq` 用 `(格, 格, 0.2/停秒數)` 表示停住。
 - **v0.7.11（2026-11-03）** 新增**唱歌**（祐的「唱歌」影片，像樂團女高音）：1–4 抬手、5–16 唱（來回播）、17–25 放下手回站姿。只在自己點歌時才唱，不放進隨機行為：右鍵選單「歌曲」、控制面板新的「歌曲」區都會列出 `app/music/` 裡的音樂檔（mp3／wav／ogg／m4a／flac／aac，檔名就是曲名），點一首就唱到歌曲播完；也可以「只唱動作」（不放音樂，唱 20 秒）。唱歌時點她一下就停下來、放下手回到站姿（不跳開心）；唱歌中 Claude 的狀態先不打斷，唱完再換。音量跟著語音音量。坐姿循環照祐實看調整：跪坐 12–16、雙手放膝 8–14、抱膝打盹 9–13 來回播，起身從循環後一格接起。
@@ -123,9 +124,10 @@ macOS 一樣，只是第 2 步改雙擊 `start-mac.command`（第一次可能要
 | 工作中 | Claude 正在用工具（`PreToolUse` / `PostToolUse`），頭上顯示工具名 | 工作中（看平板） |
 | 思考 | 你剛送出提示（`UserPromptSubmit`） | 思考 |
 | 完成 | 回答結束（`Stop`） | 完成歡呼 |
-| 打招呼 | 開新工作階段（`SessionStart`）、開機、跨過時段 | 揮手 |
+| 打招呼 | 開機、喚醒（快捷鍵、工作列小圖示） | 提屈膝禮 |
+| 打招呼 | 開新工作階段（`SessionStart`）、跨過時段 | 揮手 |
 | 出錯 | API 錯誤 | 出錯困惑 |
-| 隨機行為 | 沒事的時候 | 站著發呆、走路（往右自然走、往左雙手互握漫步）、飛一圈、東張西望、打哈欠、伸懶腰、揮手、歡呼、擺姿勢、禱告、坐到視窗邊緣；沒人理 80 秒會坐下（跪坐／雙手放膝二選一），2 分鐘可能抱膝打盹；坐著的動作結束或被打斷都會先站起來，5 分鐘會躺下睡午覺 |
+| 隨機行為 | 沒事的時候 | 站著發呆、走路（往右自然走、往左雙手互握漫步）、飛一圈、東張西望、打哈欠、伸懶腰、揮手、歡呼、擺姿勢、禱告、芭蕾（旋轉／阿拉貝斯克）、坐到視窗邊緣；沒人理 80 秒會坐下（跪坐／雙手放膝二選一），2 分鐘可能抱膝打盹；坐著的動作結束或被打斷都會先站起來，5 分鐘會躺下睡午覺 |
 
 疲憊時如果 Claude 還在工作，頭上會寫「還在工作…體力剩 12%」，所以兩件事都看得到。滑鼠移到她身上會出現**體力條**（5h、週剩餘的百分比），疲憊以上會一直顯示；也可以在選單打開「體力條常駐」。
 
@@ -235,15 +237,17 @@ python tools/build_clips.py --src <精靈表資料夾> --out <desktop-pet 資料
 |---|---|---|
 | 站著發呆 | `idle` | 22 站著發呆 |
 | 思考／工作中／等你確認 | `think` / `work` / `waitwave` | 10 思考、08 工作中、09 工作中(揮手版本) |
-| 完成歡呼／出錯困惑 | `cheer` / `confused` | 07、03 |
-| 有點累 | `tired`（每 14 秒插 `yawn`） | 30 有點累的站姿、11 打哈欠 |
-| 打哈欠／伸懶腰（播完倒退回站姿） | `yawn` / `stretch` | 11、01 |
-| 揮手、打招呼 | `wave` | 12 揮手打招呼 |
-| 東張西望 | `curious` / `curious2` | 15、38 東張西望2新版 |
-| 禱告／擺姿勢／害羞／點一下 | `pray` / `pose` / `shy` / `happy` | 17、24、25、29 |
+| 完成歡呼（Claude 完成用循環版、自己歡呼整段播）／出錯困惑 | `cheer` / `cheerall` / `confused` | 57 完成歡呼新版、03 |
+| 有點累 | `tired`（每 14 秒插 `yawn`） | 30 有點累的站姿、51 打哈欠新版 |
+| 打哈欠／伸懶腰（伸懶腰播完倒退回站姿） | `yawn` / `stretch` | 51 打哈欠新版、01 |
+| 揮手、跨時段打招呼 | `wave` | 54 揮手新版 |
+| 芭蕾（隨機、選單） | `pirouette` / `arabesque` | 55 旋轉、56 阿拉貝斯克 |
+| 提屈膝禮（開機、喚醒） | `curtsy` | 52 提屈膝禮 |
+| 東張西望 | `curious` / `curious2` | 53 東張西望新版、38 東張西望2新版 |
+| 禱告／擺姿勢／害羞／點一下 | `pray` / `pose` / `shy` / `happy` | 17、24、25、58 點一下開心跳新版 |
 | 摸頭 | `pat` | 26 |
-| 拎起 | `drag` / `drag2` | 27 乖乖被拎著、28 掙扎亂踢 |
-| 落地 | `land` / `tumble` | 34 低處落地、35 高處摔倒再爬起 |
+| 拎起 | `drag` / `drag2` | 27 乖乖被拎著、59 掙扎亂踢新版 |
+| 落地 | `land` / `tumble` | 34 低處落地、60 高處摔倒再爬起新版 |
 | 坐下休息 | `kneeldown` → `kneel` → `kneelup`、`kneesdown` → `knees` → `kneesup` | 44 跪坐起身、45 放膝坐起身 |
 | 坐著打盹 | `dozedown` → `doze` → `dozeup` | 46 抱膝起身 |
 | 站著打瞌睡 | `sleep` | 18 |
@@ -303,6 +307,9 @@ python tools/build_clips.py --src <精靈表資料夾> --out <desktop-pet 資料
 2. ~~**唱歌**~~（v0.7.11 完成；歌曲放 `app/music/`）。
 3. ~~**拉小提琴**~~（v0.7.12 完成；樂曲放 `app/music/violin/`）：只在使用者自己點曲子時才播，不放進隨機行為（不然隨時開交響樂🤣）。
 4. ~~**指揮**~~（v0.8.0 完成；管弦樂放 `app/music/conduct/`）。
+5. ~~**提屈膝禮、打哈欠新版、東張西望新版**~~（v0.8.1 完成，都是 49 格）。
+6. ~~**揮手新版、芭蕾：旋轉、阿拉貝斯克**~~（v0.8.1 完成）。芭蕾第三段（手臂舞姿配屈膝）、**右鍵羊皮紙選單**：準備中。
+7. **幀數加倍重做**（照「動作大、格數少」排）：~~掙扎亂踢、完成歡呼、點一下開心跳、高處摔倒~~（v0.8.1 完成），接下來是兩種飛行（重做姿勢：飛的時候不能縮水、不能像被拎著）、低處落地，再來是三種坐下的「坐下那一下」。
 
 提示詞（都是圖生影片，首幀用 `22_站著發呆_01`，最後接通用尾巴）：
 ```
@@ -312,12 +319,20 @@ python tools/build_clips.py --src <精靈表資料夾> --out <desktop-pet 資料
 
 指揮：standing facing forward, she raises a slender white conductor's baton in her right hand and lifts her left hand, gives a sharp dramatic downbeat with both arms, then conducts with strong passionate sweeping gestures, baton cutting the air in powerful accents, left hand rising and clenching for emphasis, eyes closed in intense concentration, long hair and ruffled skirt swaying with each beat, finally lowers the baton and her hands, bows slightly and returns to standing with arms relaxed at her sides
 
+提屈膝禮：standing facing forward, she gracefully crosses one foot behind the other, lightly pinches both sides of her ruffled skirt with her fingertips and lifts it slightly outward, bends her knees and lowers her body in an elegant curtsy, bowing her head with eyes softly closed and a gentle smile, holds the bow for a moment, then slowly rises, releases her skirt, uncrosses her feet and returns to standing facing forward with arms relaxed at her sides
+
+打哈欠：standing facing forward, she slowly raises one hand and gently covers her mouth with her fingertips, closes her eyes as she takes a long sleepy yawn, her shoulders lifting softly and her head tilting back slightly, a tiny tear forming at the corner of her eye, then she lowers her shoulders, blinks slowly a few times with drowsy half-closed eyes, rubs one eye lightly with the back of her hand, and lowers her hand to return to standing facing forward with arms relaxed at her sides
+
+東張西望：standing facing forward, she slowly turns her head to look toward the left with curious wide eyes, pauses there for a moment, then slowly turns her head across to look toward the right, pauses again, tilts her head slightly with a small puzzled expression, lifts one finger to her chin in thought, then turns her head back to face forward, lowers her hand and returns to standing facing forward with arms relaxed at her sides, her body and feet staying still while only her head and upper body turn
+
+順暢尾巴（慢動作加這段）：slow smooth continuous motion, gentle easing in and out, no sudden or jerky movements, feet stay planted on the same spot, character stays the same size and position throughout, camera completely locked with no zoom
+
 通用尾巴：static locked camera, plain solid background, no camera movement, full body in frame, character stays in place, seamless loop with the last frame matching the first frame, consistent character design throughout
 ```
 動作快的（小提琴、指揮）用**幀數加倍的 7×7＝49 格版**會流暢很多。
 
 **還可以更好的地方（不急）：**
-- **回到站姿的連續幀**：打哈欠、東張西望、思考等最後一格不是站姿的動作，目前用 0.3 秒淡回站姿，看得到一點重影。
+- **回到站姿的連續幀**：打哈欠、東張西望（正面）已換成首尾都是站姿的新版；思考、出錯困惑、擺姿勢、害羞等最後一格不是站姿的動作，還是用 0.3 秒淡回站姿，看得到一點重影。
 - **坐到視窗邊緣的來回飛行**還沒套用起飛／落地片段。
 - 幾段影片比站姿暗 2～4%（思考、害羞、摸頭、有點累、低處落地），肉眼不太看得出來，要的話用 `match` 一起補。
 - 右鍵選單的羊皮紙框（原生選單不能換皮，要自己畫一個選單視窗）。
@@ -344,6 +359,8 @@ python tools/build_clips.py --src <精靈表資料夾> --out <desktop-pet 資料
 遇到問題時：右鍵 →「打開狀態資料夾」看 JSON 有沒有在更新；hooks 可以在 Claude Code 裡打 `/hooks` 檢查；設定 `NADESHIKO_PET_DEBUG=1` 時 hook 錯誤會印到 stderr。
 
 ## 10. 語音台詞
+
+> **關於附的語音：**`app/voice/` 裡的 96 句是祐用 Breeze-TTS-2 生成的（聲音 `agent_girl`），只是一個範例。**每個人喜歡的音色不同，請自行挑選自己喜歡的品味**：用下面的「語音工作室」換成你喜歡的聲音重新生成，或把語音關掉只看字都可以。
 
 ### 運作方式
 - 台詞表：`app/voice/lines.json`。每個狀態 2~3 句，`text` 是頭上小字，`say` 是實際唸出來的字（省略就唸 `text`，例如 `Zzz…` 唸成「呼……呼……」）。

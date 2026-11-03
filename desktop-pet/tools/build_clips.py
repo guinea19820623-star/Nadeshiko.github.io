@@ -35,16 +35,19 @@ CLIPS = [
     dict(no=4,  src='坐下',       key='seat1',     anchor='sit',   loop=(8, 16), intro=(1, 7), xfade=0.3, k=0.80, wired=False),
     dict(no=5,  src='坐下2',      key='sit2_old',  anchor='sit',   loop=(1, 16), xfade=0.4, k=0.70, wired=False),
     dict(no=6,  src='坐著打盹',   key='doze_old',  anchor='sit',   loop=(1, 16), xfade=0.3, k=0.84, wired=False),
-    dict(no=7,  src='完成歡呼',   key='cheer',     anchor='stand', loop=(1, 16), xfade=0.2, sprites={'cheer': 1}),
+    # 完成歡呼（#07）、拖曳2（#28）、點一下開心跳（#29）由 #57–59 幀數加倍的新版取代
+    dict(no=7,  src='完成歡呼',   key='cheer_old', anchor='stand', loop=(1, 16), xfade=0.2, wired=False),
     dict(no=8,  src='工作中',     key='work',      anchor='stand', intro=(1, 4), loop=(5, 16), xfade=0.2, sprites={'work': 5, 'work2': 12}),
     dict(no=9,  src='工作中(揮手版本)', key='waitwave', anchor='stand', intro=(1, 6), loop=(7, 16), xfade=0.25),
     dict(no=10, src='思考',       key='think',     anchor='stand', intro=(1, 9), loop=(10, 16), xfade=0.2, sprites={'think': 10}),
-    dict(no=11, src='打哈欠',     key='yawn',      anchor='stand', once=True, sprites={'yawn': 8}),
-    dict(no=12, src='揮手打招呼', key='wave',      anchor='stand', loop=(1, 16), xfade=0.15, sprites={'wave': 4}),
+    # 打哈欠（#11）、東張西望（#15）由 #51、#53 幀數加倍的新版取代
+    dict(no=11, src='打哈欠',     key='yawn_old',  anchor='stand', once=True, wired=False),
+    # 揮手打招呼（#12）由 #54 幀數加倍的新版取代
+    dict(no=12, src='揮手打招呼', key='wave_old',  anchor='stand', loop=(1, 16), xfade=0.15, wired=False),
     # 昏倒（#13）祐決定不用，只留昏倒2（faintb）
     dict(no=13, src='昏倒',       key='faint',     anchor='lie',   intro=(1, 9), loop=(10, 16), xfade=0.3, wired=False),
     dict(no=14, src='昏倒2',      key='faintb',    anchor='lie',   intro=(1, 6), loop=(7, 15), xfade=0.3),
-    dict(no=15, src='東張西望',   key='curious',   anchor='stand', once=True, sprites={'curious': 8}),
+    dict(no=15, src='東張西望',   key='curious_old', anchor='stand', once=True, wired=False),
     # 東張西望2（#16）祐覺得銜接不順，改用 #38 新版
     dict(no=16, src='東張西望2',  key='curious2_old', anchor='side', once=True, wired=False),
     dict(no=17, src='禱告',       key='pray',      anchor='stand', intro=(1, 5), loop=(6, 16), xfade=0.25),
@@ -62,9 +65,9 @@ CLIPS = [
     dict(no=26, src='摸頭',       key='pat',       anchor='stand', intro=(1, 3), loop=(4, 16), xfade=0.3, sprites={'pat': 8}),
     # 拎起：只用離地之後的格（拖曳1 第 1–6 格、拖曳2 第 1–3 格還站在地上），頭頂對到 hang（拖曳1 往上提一點免得腳尖出畫布；拖曳2 手腳甩得開，縮 0.95）
     dict(no=27, src='拖曳 1：乖乖被拎著', name='拖曳1', key='drag', anchor='hang', hang=(330, 20), loop=(7, 16), xfade=0.3, sprites={'drag': 9}),
-    dict(no=28, src='拖曳 2：掙扎亂踢', name='拖曳2', key='drag2', anchor='hang', hang=(330, 38), k=0.95, intro=(4, 4), loop=(5, 16), xfade=0.25, sprites={'drag2': 9}),
+    dict(no=28, src='拖曳 2：掙扎亂踢', name='拖曳2', key='drag2_old', anchor='hang', hang=(330, 38), k=0.95, intro=(4, 4), loop=(5, 16), xfade=0.25, wired=False),
     # 2026-11-03 第三批：取代舊 28 開心、23 疲憊、76／80 坐在視窗邊緣、83 趴在視窗上緣、78 緩降，並新增兩種落地
-    dict(no=29, src='點一下開心跳', key='happy',  anchor='stand', once=True, sprites={'happy': 6}),
+    dict(no=29, src='點一下開心跳', key='happy_old', anchor='stand', once=True, wired=False),
     # 疲憊：揉眼睛（1–15）播一次，之後在睏倦站姿（16–25）循環；每 14 秒另外插一次打哈欠
     dict(no=30, src='有點累的站姿', key='tired',  anchor='stand', intro=(1, 15), loop=(16, 25), xfade=0.3, sprites={'tired': 20}),
     # 坐在視窗邊緣：屁股與撐著的手在原圖 y≈430，這條線貼著視窗邊緣
@@ -75,7 +78,8 @@ CLIPS = [
     dict(no=33, src='緩降', name='緩降2', key='float', anchor='float', stabilize=True, range=(9, 16), loop=(9, 16), xfade=0.3, sprites={'float': 9}),
     # 落地：低處（13–25：著地、蹲下、站起）、高處（3–25：半空、摔在地上、爬起來、站好）
     dict(no=34, src='低處落地',     key='land',    anchor='stand', once=True, range=(13, 25)),
-    dict(no=35, src='高處摔倒再爬起', key='tumble', anchor='stand', once=True, range=(3, 25)),
+    # 高處摔倒（#35）由 #60 幀數加倍的新版取代
+    dict(no=35, src='高處摔倒再爬起', key='tumble_old', anchor='stand', once=True, range=(3, 25), wired=False),
     # 2026-11-03 第四批：昏倒與睡午覺改成「躺下 → 循環 → 醒來站起」同一段影片，倒著播就是躺下
     # 兩段影片鏡頭都在拉遠（站起來只剩站姿的 0.86 倍），用 track 逐格補回來，站好時跟站著發呆一樣高
     # 昏倒那段：躺著時比站姿近（頭寬目測 ×0.83 剛好），坐起來後（第 17 格起）鏡頭才拉遠；側睡醒來那段整段一樣遠，只是躺著時右邊會出畫布，往左挪 22px
@@ -161,6 +165,50 @@ CLIPS = [
          derive=[dict(key='conductstart', seq=(1, 3)),
                  dict(key='conduct', seq=(4, 33), loop=True, xfade=0.1),
                  dict(key='conductend', seq=(34, 49))]),
+    # 2026-11-03 幀數加倍（7×7＝49 格）的三段：首尾都是站著發呆，整段播一次。鏡頭跟坐下＋起身一樣
+    # 打哈欠新版（約 5 秒）：摀嘴打哈欠、揉眼、放下手
+    dict(no=51, src='打哈欠新版', key='yawn', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, sprites={'yawn': 20}),
+    # 提屈膝禮（約 4 秒）：拎裙、交叉腳、屈膝低頭（19–28 停在最低）、起身。裙擺鋪開時比腳底低 11px，剛好在地面線下
+    dict(no=52, src='提屈膝禮', key='curtsy', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, sprites={'curtsy': 22}),
+    # 東張西望新版（約 4 秒）：往右看、往左看、手指抵下巴歪頭、轉回正面
+    dict(no=53, src='東張西望新版', key='curious', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, sprites={'curious': 8}),
+    # 揮手新版（49 格、約 4 秒）：1–7 舉手、8–42 揮手、43–49 放下。打招呼、揮手、Claude 的打招呼狀態（剛好 4 秒）都整段播一次
+    dict(no=54, src='揮手新版', key='wave', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, sprites={'wave': 10}),
+    # 芭蕾·旋轉（49 格、約 5 秒）：3–5 抬手、6–33 踮腳轉兩圈、34–43 落下回站姿。轉的時候雙手舉過頭（原圖頭頂到 y=0），縮到 ×1.05 才不出畫布
+    dict(no=55, src='旋轉', key='pirouette', anchor='track', track=[(4, 1.095), (6, 1.05), (34, 1.05), (36, 1.095)], ground_src=702, match=1, once=True,
+         sprites={'pirouette': 16}),
+    # 芭蕾·阿拉貝斯克（49 格、約 4 秒）：3–12 抬腿伸手、13–31 停在單腳站姿、32–45 收腿回站姿；伸直的腿到原圖 x=44，剛好在畫布裡
+    dict(no=56, src='阿拉貝斯克', key='arabesque', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, sprites={'arabesque': 20}),
+    # 完成歡呼新版（49 格、約 4 秒）：1–4 張開雙手、5–42 原地跳 7 下、43–49 放下手回站姿。跳最高時手到原圖頂端，跳的那段縮到 ×1.05
+    # Claude 完成時（6 秒）：1–13 播一次，之後 14–24 循環（第 25 格≈第 14 格，差 4.6）；自己歡呼（選單、隨機）整段播一次 cheerall
+    dict(no=57, src='完成歡呼新版', key='cheer', anchor='track', track=[(3, 1.095), (5, 1.05), (46, 1.05), (48, 1.095)], ground_src=702, match=1,
+         intro=(1, 13), loop=(14, 24), xfade=0.1, sprites={'cheer': 11},
+         derive=[dict(key='cheerall', seq=(1, 49))]),
+    # 點一下開心跳新版：雙手合掌、冒愛心、小跳兩下。40 格之後幾乎不動，只用 1–40（約 3.3 秒）；跳起來時頭到原圖頂端，跳的那段縮到 ×1.05
+    dict(no=58, src='點一下開心跳新版', key='happy', anchor='track', track=[(4, 1.095), (6, 1.05), (32, 1.05), (35, 1.095)], ground_src=702, match=1,
+         once=True, range=(1, 40), sprites={'happy': 9}),
+    # 掙扎亂踢新版：1–4 還站在地上、5–40 被拎著踢腳、41–49 放回地面站好。拎起只用離地的格：5–11 播一次，12–29 循環（第 30 格≈第 12 格，差 6.8）
+    # 第 22、23 格腳甩到快碰地，照站姿大小會出畫布下緣，縮到 ×1.04（舉手、甩頭髮的格頂端也剛好不出去）
+    # 高處摔倒再爬起新版（49 格）：1–4 站著不用（掉下來交給程式），5–6 著地、7–21 跌坐發暈揉頭、22–33 趴下撐地爬起、34–46 站好（之後幾乎不動，不用）
+    # 頭髮鋪在地上時（26–30 格）比腳底低 30px，出畫布下緣一點點，只裁到地面線以下的髮尾
+    dict(no=60, src='高處摔倒再爬起新版', key='tumble', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, range=(5, 46)),
+    # 兩段新飛行（49 格，面向右，往左飛鏡像）：影片模型把「上下浮動」做成一跳一跳（每 7 格落回地面一次，像空中青蛙跳），
+    # 所以只挑腳離地、姿勢最穩的 3 格來回播當飛行循環（放慢到 0.6 倍），起飛和落地各自從最像的那格剪接過去
+    # 飛的時候手腳張開比畫布寬，飛行那段縮到 ×1.0
+    # 祐 2026-11-03 試看後決定不用：飛行時人變小（×1.0 看得出縮水），優雅那段像被從側邊拎起來；飛行姿勢之後重做，先用回 #40、#41
+    # 平飛：1–9 轉身起跳 → 接 30（第 9 格≈第 30 格，差 1.4）→ 30→32→31 來回 → 32–37 落地轉回正面
+    dict(no=61, src='飛行（平飛）詭異', name='平飛剪接', key='fly3all_cut', wired=False, anchor='track', track=[(3, 1.095), (6, 1.0), (35, 1.0), (37, 1.095)],
+         ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='fly3up', seq=(1, 9)),
+                 dict(key='fly3', seq=[(30, 32, 0.6), (31, 31, 0.6)], loop=True, xfade=0.1),
+                 dict(key='fly3down', seq=(32, 37), speed=0.8)]),
+    # 優雅滑翔：1–9 轉身起跳 → 23–24 → 25→26→25→24 來回 → 接 33（第 24 格≈第 33 格，差 10.8）–44 緩緩落地站好
+    dict(no=62, src='優雅起飛＋滑翔.詭異', name='優雅滑翔剪接', key='fly2all_cut', wired=False, anchor='track', track=[(4, 1.095), (6, 1.0), (41, 1.0), (43, 1.095)],
+         ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='fly2up', seq=[(1, 9), (23, 24)]),
+                 dict(key='fly2', seq=[(25, 26, 0.6), (25, 24, 0.6)], loop=True, xfade=0.1),
+                 dict(key='fly2down', seq=(33, 44), speed=0.8)]),
+    dict(no=59, src='掙扎亂踢新版', key='drag2', anchor='hang', hang=(330, 46), k=1.04, intro=(5, 11), loop=(12, 29), xfade=0.1, sprites={'drag2': 20}),
 ]
 
 

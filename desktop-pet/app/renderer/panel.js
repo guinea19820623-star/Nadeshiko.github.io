@@ -25,7 +25,7 @@ const SIM = [
 ];
 const ACTIONS = [
   ['walk', '走一走'], ['fly', '飛一圈'], ['yawn', '打哈欠'], ['stretch', '伸懶腰'],
-  ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '側睡'], ['sit', '坐下休息'], ['perch', '坐到視窗邊緣'], ['shy', '害羞'], ['wake', '睡醒爬起來'], ['pray', '禱告'], ['doze', '坐著打盹'], ['land', '回到地面'],
+  ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '側睡'], ['sit', '坐下休息'], ['perch', '坐到視窗邊緣'], ['shy', '害羞'], ['wake', '睡醒爬起來'], ['pray', '禱告'], ['doze', '坐著打盹'], ['curtsy', '提屈膝禮'], ['pirouette', '芭蕾：旋轉'], ['arabesque', '芭蕾：阿拉貝斯克'], ['land', '回到地面'],
 ];
 
 const VLABEL = {

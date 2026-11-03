@@ -1,0 +1,16 @@
+這個資料夾放指揮用的管弦樂曲。檔名（去掉副檔名）就是曲名，右鍵選單「指揮」或控制面板的「指揮」點一首，撫子就會揮指揮棒；指揮時點她一下就停。
+
+以下樂曲的出處與授權（2026-11-03 從 Wikimedia Commons 下載，檔名改成中文曲名）
+
+貝多芬：C 小調第五號交響曲「命運」作品 67（Beethoven, Symphony No. 5 in C minor, Op. 67）
+演奏：富爾達交響樂團（Fulda Symphonic Orchestra），指揮 Simon Schindler；Rebekka Herrmann（小提琴）、Kristina Rill（中提琴）
+錄音：2002 年，富爾達橘園大廳（Grosser Saal der Orangerie Fulda）
+原始來源：http://www-plan.cs.colorado.edu/henkel/fso/index-en.html
+授權：EFF Open Audio License version 1（與 CC BY-SA 相容，使用時要標明演奏者與來源）
+
+  命運交響曲 第一樂章.ogg　 7:16　https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_Symphonie_5_c-moll_-_1._Allegro_con_brio.ogg
+  命運交響曲 第二樂章.ogg　 9:57　https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_Symphonie_5_c-moll_-_2._Andante_con_moto.ogg
+  命運交響曲 第三樂章.ogg　 5:22　https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_Symphonie_5_c-moll_-_3._Allegro.ogg
+  命運交響曲 第四樂章.ogg　10:53　https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_Symphonie_5_c-moll_-_4._Allegro.ogg
+
+只改了檔名，音檔內容沒有改。要公開分享這些檔案時，請連同這份說明一起附上。

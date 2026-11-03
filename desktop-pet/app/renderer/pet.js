@@ -20,7 +20,7 @@ const fxEl = document.getElementById('fx');
 const ACTION_LINES = {
   yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '好耶～', nap: 'Zzz…',
   curious: '嗯？', pose: '♪', happy: '嘿嘿♪', pat: '再摸一下嘛…', drag: '哇！放我下來～', dizzy: '暈…',
-  pray: '願一切順利～', doze: 'Zzz…',
+  pray: '願一切順利～', doze: 'Zzz…', curtsy: '日安～', pirouette: '轉一圈～', arabesque: '♪～',
 };
 
 const S = {
@@ -153,10 +153,17 @@ async function buildBitmaps() {
     const img = await loadImage(`../sprites/${info.file}`);
     out[key] = await createImageBitmap(img, { resizeWidth: px, resizeHeight: px, resizeQuality: 'high' });
   }));
+  // 畫面上正在用的片段格先留著：片段重載好之前，畫面找不到那格會退回站姿 idle（休眠喚醒時躺著的她會彈起來一下）
+  // 那格的頭頂位置（clipInfo）也一起留著，不然泡泡會跳到站姿的頭頂閃一下
+  const keepInfo = {};
+  for (const k of [view.sprite, view.blend && view.blend.sprite]) {
+    if (k && !out[k] && S.bitmaps[k]) out[k] = S.bitmaps[k];
+    if (k && S.clipInfo[k]) keepInfo[k] = S.clipInfo[k];
+  }
   S.bitmaps = out;
   // 尺寸改了或顯示資源重建：動畫片段的圖也要重做，等下次用到再載入
   bitmapGen++;
-  S.clipInfo = {};
+  S.clipInfo = keepInfo;
   for (const k of Object.keys(clipRes)) delete clipRes[k];
 }
 
@@ -376,7 +383,8 @@ function idleMode(duration = rand(5, 12), sprite = 'idle') {
 }
 
 // 動作 → 動畫片段（manifest.clips）。東張西望有正面與側身兩種，在 poseMode 裡隨機挑
-const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheer', pray: 'pray', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy' };
+// 歡呼：Claude 完成時用循環版 cheer，自己歡呼整段播一次 cheerall（最後放下手回站姿）
+const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheerall', pray: 'pray', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy', curtsy: 'curtsy', pirouette: 'pirouette', arabesque: 'arabesque' };
 
 // 定點姿勢（打哈欠、伸懶腰、揮手…）
 function poseMode(kind, duration) {
@@ -391,6 +399,9 @@ function poseMode(kind, duration) {
     shy: { sprite: 'shy', dur: 2.8 },
     nap: { sprite: 'sleep', dur: Infinity },
     pray: { sprite: 'idle', dur: 7 },
+    curtsy: { sprite: 'curtsy', dur: 4 },
+    pirouette: { sprite: 'pirouette', dur: 5 },
+    arabesque: { sprite: 'arabesque', dur: 4 },
   }[kind];
   // 有動畫片段就播片段，沒有（或還沒載好）退回舊的單張圖加程式動作
   const clip = kind === 'curious' ? (Math.random() < 0.5 ? 'curious' : 'curious2') : POSE_CLIP[kind];
@@ -429,19 +440,22 @@ function poseMode(kind, duration) {
   };
 }
 
-// 依時段打招呼：開機後、以及跨過時段（早／午／下午／晚／深夜）時
+// 依時段打招呼：開機與喚醒時提屈膝禮（祐 2026-11-03），跨過時段（早／午／下午／晚／深夜）時揮手
 const periodOf = (h = new Date().getHours()) => (h >= 5 && h < 11 ? 'morning' : h < 14 && h >= 11 ? 'noon' : h >= 14 && h < 18 ? 'afternoon' : h >= 18 && h < 23 ? 'evening' : 'night');
-function greetMode(period = periodOf()) {
+function greetMode(period = periodOf(), clip = 'wave') {
   const key = `greet_${period}`;
+  if (!clipDef(clip)) clip = 'wave';
+  const dur = clipSeconds(clip) || 2.8; // 揮手新版、提屈膝禮都是整段播一次
   return {
     name: 'greet',
-    enter() { say(key, 2800); ensureClip('wave'); },
+    enter() { say(key, 2800); ensureClip(clip); },
     update(dt, t) {
-      if (playClip('wave', t, { fadeIn: 0.2, fadeOut: 0.3, dur: 2.8 })) return t < 2.8;
-      view.sprite = 'wave';
+      if (playClip(clip, t, { base: 'idle', fadeIn: 0.2, fadeOut: 0.3, dur })) return t < dur;
+      if (waitingClip(clip) && t < 1.5) return true; // 載入中沿用前一格，不閃單張圖
+      view.sprite = clip;
       breathe(t);
-      view.rot = Math.sin(t * Math.PI * 4.4) * 0.03;
-      return t < 2.8;
+      if (clip === 'wave') view.rot = Math.sin(t * Math.PI * 4.4) * 0.03;
+      return t < dur;
     },
   };
 }
@@ -1058,13 +1072,13 @@ function claudeMode(body) {
           view.rot = Math.sin(t * 1.7) * 0.02;
           break;
         case 'tired': {
-          // 偶爾打個哈欠（新的哈欠片段約 3 秒，從第 11 秒開始播，剛好接在 14 秒循環結束前）
+          // 偶爾打個哈欠（新版哈欠片段約 5 秒，從第 9 秒開始播，剛好接在 14 秒循環結束前）
           const cyc = t % 14;
-          if (cyc > 11 && playClip('yawn', cyc - 11, { base: 'tired', fadeIn: 0.25, fadeOut: 0.3, dur: 3 })) break;
+          if (cyc > 9 && playClip('yawn', cyc - 9, { base: 'tired', fadeIn: 0.25, fadeOut: 0.3, dur: 5 })) break;
           // 新的疲憊站姿片段：先揉一次眼睛，之後在睏倦站姿循環
           if (playClip('tired', t)) break;
           view.blend = null; // 剛打完哈欠的淡出殘留要清掉
-          view.sprite = cyc > 11.5 ? 'yawn' : eyes('tired', t, 0.9);
+          view.sprite = cyc > 9.5 ? 'yawn' : eyes('tired', t, 0.9);
           breathe(t, 0.012, 4.6);
           break;
         }
@@ -1258,7 +1272,7 @@ function claudeState() {
 }
 
 const INTERACTIONS = new Set(['drag', 'fall', 'pat', 'happy']);
-const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze']);
+const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze', 'curtsy', 'pirouette', 'arabesque']);
 
 function chooseFree() {
   const s = S.settings;
@@ -1281,8 +1295,13 @@ function chooseFree() {
     cheer: 4,
     pose: 8,
     pray: clipDef('pray') ? 3 : 0,
+    ballet: clipDef('pirouette') || clipDef('arabesque') ? 4 : 0, // 芭蕾不用配樂，偶爾跳一小段
     perch: s.perch && onGround() ? 5 : 0,
   });
+  if (k === 'ballet') {
+    const b = ['pirouette', 'arabesque'].filter(clipDef);
+    return onGround() ? poseMode(b[Math.floor(Math.random() * b.length)]) : fallMode();
+  }
   if (k === 'walk') return onGround() ? walkMode() : fallMode();
   if (k === 'fly') return flyMode();
   if (k === 'perch') return perchMode();
@@ -1455,11 +1474,11 @@ async function start() {
     buildBitmaps().catch(() => {}); // 休眠後顯示資源可能失效，重建一次
     if (mode && mode.name === 'drag') { refreshGeom(true).then(() => setMode(fallMode())); }
   });
-  // 喚醒快捷鍵／托盤圖示：躺著就爬起來，否則揮手打招呼
+  // 喚醒快捷鍵／托盤圖示：躺著就爬起來，否則提屈膝禮打招呼
   host.onSummon(() => {
     S.lastInteraction = performance.now();
     if (mode && mode.name === 'drag') return;
-    setMode(mode && mode.lying ? wakeMode(mode.wakeFrom || mode.body) : (onGround() ? poseMode('wave') : fallMode()));
+    setMode(mode && mode.lying ? wakeMode(mode.wakeFrom || mode.body) : (onGround() ? greetMode(periodOf(), 'curtsy') : fallMode()));
   });
   // 保險：滑鼠停在她身上時，每秒重新宣告一次「接住滑鼠」，萬一狀態不同步也會自己修好
   setInterval(() => { if (S.hover && !S.ignoring && !drag.active) host.setIgnore(false); }, 1000);
@@ -1482,7 +1501,7 @@ async function start() {
   setMode(idleMode(2));
   // 開機招呼 + 跨時段招呼
   let lastPeriod = periodOf();
-  freeQueue = () => greetMode();
+  freeQueue = () => greetMode(periodOf(), 'curtsy');
   setInterval(() => {
     const p = periodOf();
     if (p !== lastPeriod) { lastPeriod = p; if (!freeQueue) freeQueue = () => greetMode(p); }

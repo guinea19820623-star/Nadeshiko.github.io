@@ -1,0 +1,12 @@
+這個資料夾裡的樂曲出處與授權（2026-11-03 從 Wikimedia Commons 下載，檔名改成中文曲名）
+
+貝多芬：A 大調第九號小提琴奏鳴曲「克羅采」作品 47（Beethoven, Violin Sonata No. 9 "Kreutzer", Op. 47）
+演奏：Paul Rosenthal（小提琴）、Edward Auer（鋼琴）
+原始來源：http://hebb.mit.edu/FreeMusic/
+授權：Creative Commons 姓名標示－相同方式分享 2.0（CC BY-SA 2.0）https://creativecommons.org/licenses/by-sa/2.0/
+
+  克羅采奏鳴曲 第一樂章.ogg　10:23　https://commons.wikimedia.org/wiki/File:Beethoven_-_opus47-1_01.ogg
+  克羅采奏鳴曲 第二樂章.ogg　15:11　https://commons.wikimedia.org/wiki/File:Beethoven_-_opus47-2_02.ogg
+  克羅采奏鳴曲 第三樂章.ogg　 8:21　https://commons.wikimedia.org/wiki/File:Beethoven_-_opus47-3_03.ogg
+
+只改了檔名，音檔內容沒有改。要公開分享這些檔案時，請連同這份說明一起附上（標明演奏者、來源與授權）。
