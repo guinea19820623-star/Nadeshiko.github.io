@@ -50,6 +50,25 @@ function bindRange(id, key, fmt) {
   el.onchange = () => host.set(key, Number(el.value));
 }
 
+// 曲子清單：唱歌在 app/music/、小提琴在 app/music/violin/、指揮在 app/music/conduct/，每首一顆按鈕
+async function renderSongs(kind) {
+  const songs = await host.musicList(kind);
+  const box = $(`songs-${kind}`);
+  box.textContent = '';
+  if (!songs.length) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = '還沒有曲子';
+    box.appendChild(p);
+  }
+  for (const s of songs) {
+    const b = document.createElement('button');
+    b.textContent = `♪ ${s.title}`;
+    b.onclick = () => host.action(`${kind}:${s.file}`);
+    box.appendChild(b);
+  }
+}
+
 function render() {
   $('size').value = settings.size;
   $('size-out').textContent = `${settings.size}px`;
@@ -106,6 +125,12 @@ async function main() {
     b.textContent = label;
     b.onclick = () => host.action(key);
     $('actions').appendChild(b);
+  }
+  for (const kind of ['sing', 'violin', 'conduct']) {
+    $(`plain-${kind}`).onclick = () => host.action(kind);
+    $(`refresh-${kind}`).onclick = () => renderSongs(kind);
+    $(`open-${kind}`).onclick = () => host.musicOpen(kind);
+    renderSongs(kind);
   }
   for (const id of ['u5', 'u7']) $(id).oninput = () => { $(`${id}-out`).textContent = `${$(id).value}%`; };
   $('send-usage').onclick = () => { host.force(null); host.simUsage(Number($('u5').value), Number($('u7').value)); };

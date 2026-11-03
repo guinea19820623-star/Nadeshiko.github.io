@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>撫子桌寵</title>
-<meta name="description" content="會跟 Claude Code 連動的撫子桌面寵物，v0.7 起動作全面換成動畫">
+<meta name="description" content="會跟 Claude Code 連動的撫子桌面寵物：動作全部是新動畫，還會唱歌、拉小提琴、指揮">
 <style>
   :root{--bg:#fffaf4;--card:#fff;--ink:#4a3226;--muted:#8a6f60;--line:#f0dccb;--accent:#f08a3c;--soft:#fff1e3}
   @media (prefers-color-scheme:dark){:root{--bg:#221a16;--card:#2c221d;--ink:#f6e8dc;--muted:#c4a898;--line:#45362e;--accent:#f29a52;--soft:#33271f}}
@@ -35,27 +35,37 @@
     <img src="images/nadeshiko.png" alt="撫子站著發呆">
     <div>
       <h1>撫子桌寵</h1>
-      <p>住在你螢幕下緣的撫子：會走路、會飛、會坐下休息，被摸頭會撒嬌；還會跟 Claude Code 一起思考、工作、疲憊，額度用完就鑽進棉被睡覺。</p>
-      <p class="muted">版本 0.7.9　·　Windows / macOS　·　Electron</p>
-      <a class="btn" href="downloads/desktop-pet.zip">下載桌寵（約 54MB）</a>
+      <p>住在你螢幕下緣的撫子：會走路、會飛、會坐下休息，被摸頭會撒嬌；還會跟 Claude Code 一起思考、工作、疲憊，額度用完就鑽進棉被睡覺。點一首曲子，她會唱歌、拉小提琴，或揮起指揮棒。</p>
+      <p class="muted">版本 0.8.0　·　Windows / macOS　·　Electron</p>
+      <a class="btn" href="downloads/desktop-pet.zip">下載桌寵（約 57MB）</a>
       <a class="btn alt" href="desktop-pet/README.md">說明文件</a>
     </div>
   </header>
 
   <section>
     <h2>各種狀態</h2>
-    <img class="wide" src="images/states.jpg" alt="撫子的 35 種狀態：站著發呆、思考、工作中、等你確認、完成歡呼、出錯困惑、有點累、打哈欠、伸懶腰、東張西望、禱告、擺姿勢、害羞、摸頭撒嬌、點一下、拎起來、掙扎亂踢、跪坐、抱膝坐、側坐、坐著打盹、向右走、向左漫步、飛行、優雅滑翔、緩降、坐在視窗邊、趴在視窗上、午睡、額度用完、暈倒、高處摔倒、站著打瞌睡、揮手、低處落地">
+    <img class="wide" src="images/states.jpg" alt="撫子的 37 種狀態：站著發呆、思考、工作中、等你確認、完成歡呼、出錯困惑、有點累、打哈欠、伸懶腰、東張西望、禱告、擺姿勢、害羞、摸頭撒嬌、點一下、拎起來、掙扎亂踢、跪坐、雙手放膝、抱膝打盹、站著打瞌睡、向右走、向左漫步、飛行、優雅滑翔、緩降、坐在視窗邊、趴在視窗上、午睡、額度用完、暈倒、高處摔倒、揮手、低處落地、唱歌、拉小提琴、指揮">
     <p class="muted" style="margin-top:10px">每一格都是桌寵實際在播的動畫畫面。</p>
   </section>
 
   <section>
+    <h2>v0.8：演奏會與全新的坐姿</h2>
+    <ul>
+      <li><b>唱歌、拉小提琴、指揮</b>：右鍵選單或控制面板點一首曲子，她就演到曲子結束；中途點她一下就停。只在你點的時候演，不會突然開起交響樂</li>
+      <li><b>坐下＋起身一整段</b>：跪坐、雙手放膝、抱膝打盹都會自己站回來；坐著時被打擾，會先站起來再反應</li>
+      <li><b>舊立繪全部退場</b>：畫面上的每一格都是新動畫</li>
+    </ul>
+    <p class="muted" style="margin-top:10px">下載檔不附音樂。曲子請自己放進 <code>app/music/</code>（唱歌）、<code>app/music/violin/</code>、<code>app/music/conduct/</code>；想找能自由使用的古典樂錄音，可以到 <a href="https://commons.wikimedia.org/">Wikimedia Commons</a>，記得看授權並標明出處。</p>
+  </section>
+
+  <section>
     <h2>v0.7：動作全面換成動畫</h2>
-    <p>祐用「圖生影片 → 切成精靈幀」重做了 43 組動作，每組 16 或 25 格。舊立繪幾乎全部退場，只剩飛行 54。</p>
+    <p>祐用「圖生影片 → 切成精靈幀」重做了全部動作，每組 16、25 或 49 格。</p>
     <ul>
       <li><b>起手、循環、收尾一整段</b>：躺下 → 睡著 → 醒來站起；起飛 → 滑翔 → 落地；轉身起步 → 走路 → 轉回正面</li>
       <li><b>往右自然走、往左雙手互握優雅漫步</b>，兩個方向各一段影片，不再鏡像</li>
       <li><b>兩種落地</b>：低處落下蹲一下，太高會摔倒再爬起來；在空中被點會先緩緩飄下來</li>
-      <li><b>坐下休息三種</b>：跪坐、抱膝、側坐；冷落久一點會坐著打盹、再久就躺下睡午覺</li>
+      <li><b>坐下休息</b>：跪坐或雙手放膝；冷落久一點會抱膝打盹，再久就躺下睡午覺</li>
     </ul>
   </section>
 
@@ -90,10 +100,13 @@
       <li><b>來回播比單向循環穩。</b>影片裡的人幾乎都會慢慢漂移，挑最穩的幾格來回播，接縫就消失了。</li>
       <li><b>我的意見：</b>接下來最值得補的是各動作「回到站姿」的那幾格和坐下的起身。接縫補齊之後，她看起來會真的像一個人在動，而不是一段段影片在換。</li>
     </ul>
-    <div class="note">
-      <span class="tag">即將加入</span><span class="tag">唱歌</span><span class="tag">拉小提琴</span>
-      <p style="margin:6px 0 0">像樂團女高音一樣唱歌，還有拉小提琴：小提琴只在你自己點曲子時才演奏，不然她隨時會開起交響樂。</p>
-    </div>
+    <h2 style="margin-top:18px">v0.8 的想法</h2>
+    <ul>
+      <li><b>一段影片做完一整個動作。</b>從站姿出發，坐下、坐著、站回來一次拍完，我切成三段，接縫自然就對上了。</li>
+      <li><b>停住比放慢自然。</b>讓開頭那格先停幾秒再動一次，就像真人隔一陣子才眨一次眼。</li>
+      <li><b>打拍子不能倒著播。</b>小提琴的弓來回播剛好就是運弓；指揮的拍子有方向，所以用單向循環。</li>
+      <li><b>我犯了一個錯。</b>我說「放了一首巴哈的提琴曲」，其實沒有放。說了沒做的事比沒做還糟，之後回報做了什麼，我只寫真的確認過的。</li>
+    </ul>
   </section>
 
   <section>

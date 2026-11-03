@@ -322,6 +322,8 @@ let modeT = 0;
 function setMode(m) {
   // 躺著（睡覺、暈倒）要換成別的動作時，先慢慢爬起來；被拎起則直接抓走
   if (mode && mode.lying && !m.lying && m.name !== 'drag' && m.name !== 'wake') m = wakeMode(mode.wakeFrom || mode.body);
+  // 坐著要換成別的動作時，先站起來再接下去
+  else if (mode && mode.rise && m.name !== 'drag' && m.name !== 'rise') m = riseMode(mode.rise, m);
   if (mode && mode.exit) mode.exit();
   // 上一個動作剛好淡完（疊上去的圖已經全不透明）：直接換成那張，免得換動作的那一格閃回淡出前的畫面
   if (view.blend && view.blend.a >= 0.95) view.sprite = view.blend.sprite;
@@ -374,7 +376,7 @@ function idleMode(duration = rand(5, 12), sprite = 'idle') {
 }
 
 // 動作 → 動畫片段（manifest.clips）。東張西望有正面與側身兩種，在 poseMode 裡隨機挑
-const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheer', pray: 'pray', nap: 'sleep', doze: 'doze', pose: 'pose', shy: 'shy', happy: 'happy' };
+const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheer', pray: 'pray', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy' };
 
 // 定點姿勢（打哈欠、伸懶腰、揮手…）
 function poseMode(kind, duration) {
@@ -389,7 +391,6 @@ function poseMode(kind, duration) {
     shy: { sprite: 'shy', dur: 2.8 },
     nap: { sprite: 'sleep', dur: Infinity },
     pray: { sprite: 'idle', dur: 7 },
-    doze: { sprite: 'sit2', dur: rand(25, 50) },
   }[kind];
   // 有動畫片段就播片段，沒有（或還沒載好）退回舊的單張圖加程式動作
   const clip = kind === 'curious' ? (Math.random() < 0.5 ? 'curious' : 'curious2') : POSE_CLIP[kind];
@@ -445,22 +446,89 @@ function greetMode(period = periodOf()) {
   };
 }
 
-// 坐下等待：三種隨機一種——日式跪坐（片段 seiza）、抱膝坐下（片段 seat1）、側坐（片段 sit2），全是新版
-function sitMode() {
-  const kinds = ['seiza', 'seat1', 'sit2'].filter(clipDef);
-  const kind = kinds.length ? kinds[Math.floor(Math.random() * kinds.length)] : 'sit1';
-  const base = kind === 'sit2' ? 'sit2' : 'sit1'; // 片段淡入、還沒載好時用的單張圖（sit1 已換成新跪坐的第 1 格）
-  const dur = rand(25, 60);
+// 坐下＋起身（祐 2026-11-03）：一段影片從站著發呆開始，坐下（播一次）→ 坐著（循環）→ 起身（播一次）站回原位
+// SEATS[種類]：down／loop／rise 三個片段，base＝片段還沒載好時的單張圖
+const SEATS = {
+  kneel: { down: 'kneeldown', loop: 'kneel', rise: 'kneelup', base: 'sit1' },   // 跪坐
+  knees: { down: 'kneesdown', loop: 'knees', rise: 'kneesup', base: 'sit2' },   // 雙手放膝
+  doze: { down: 'dozedown', loop: 'doze', rise: 'dozeup', base: 'doze' },       // 抱膝打盹
+};
+// 坐著的動作：時間到或被打斷時，setMode 會先接 riseMode 播起身（見 mode.rise）
+function seatedMode(name, kind, dur, line) {
+  const seat = SEATS[kind];
   return {
-    name: 'sit',
-    enter() { say('sit', 2200); ensureClip(kind); },
+    name,
+    rise: seat.rise,
+    enter() { say(line, 2200); ensureClip(seat.down); ensureClip(seat.loop); ensureClip(seat.rise); },
     update(dt, t) {
-      if (playClip(kind, t, { base, fadeIn: 0.3 })) return t < dur;
-      view.sprite = eyes(base, t, base === 'sit1' ? 0.4 : 2.1);
+      if (lieView(seat.down, seat.loop, t)) return t < dur;
+      view.sprite = eyes(seat.base, t, 0.4);
       breathe(t, 0.007, 3.8);
-      // 剛坐下時輕輕沉一下
-      if (t < 0.4) view.dy = Math.sin((t / 0.4) * Math.PI) * S.size * 0.012;
       return t < dur;
+    },
+  };
+}
+// 坐下等待：跪坐、雙手放膝兩種隨機一種
+function sitMode() {
+  return seatedMode('sit', Math.random() < 0.5 ? 'kneel' : 'knees', rand(25, 60), 'sit');
+}
+// 坐著打盹：抱膝把臉埋在手臂上
+function dozeMode() {
+  return seatedMode('doze', 'doze', rand(25, 50), 'doze');
+}
+// 唱歌、拉小提琴、指揮（祐 2026-11-03）：只在使用者自己點曲子時才演出。開始（播一次）→ 循環到音樂播完 → 收尾（借用起身的機制）
+// file：音樂檔名（唱歌在 app/music/、小提琴在 app/music/violin/、指揮在 app/music/conduct/）；沒有就只做動作 20 秒。
+// 演出時被點一下就停（見點擊處理），Claude 的狀態等她演完再換
+const MUSIC_DIR = '../music/';
+const PERFORM = {
+  sing: { start: 'singstart', loop: 'sing', end: 'singend', dir: '' },
+  violin: { start: 'violinstart', loop: 'violin', end: 'violinend', dir: 'violin/' },
+  conduct: { start: 'conductstart', loop: 'conduct', end: 'conductend', dir: 'conduct/' },
+};
+const PERFORMING = new Set(Object.keys(PERFORM));
+function performMode(kind, file) {
+  const p = PERFORM[kind];
+  let audio = null;
+  let ended = false;
+  const title = file ? file.replace(/\.[^.]+$/, '') : '';
+  const dur = file ? Infinity : 20;
+  return {
+    name: kind,
+    rise: p.end,
+    enter() {
+      ensureClip(p.start); ensureClip(p.loop); ensureClip(p.end);
+      S.say = { text: title ? `♪ ${title}` : '♪～', until: performance.now() + 3000 };
+      if (!file) return;
+      try {
+        audio = new Audio(MUSIC_DIR + p.dir + encodeURIComponent(file));
+        audio.volume = clamp(S.settings.volume / 100, 0, 1);
+        audio.onended = () => { ended = true; };
+        audio.onerror = () => { ended = true; S.say = { text: `放不出來：${title}`, until: performance.now() + 4000 }; };
+        audio.play().catch(() => { ended = true; });
+      } catch (_) { ended = true; }
+    },
+    exit() { if (audio) { audio.pause(); audio = null; } },
+    update(dt, t) {
+      if (!lieView(p.start, p.loop, t)) { view.sprite = 'idle'; breathe(t); }
+      return !ended && t < dur;
+    },
+  };
+}
+
+// 起身：播完接原本要換的動作（next）；片段沒有就直接換
+// 坐姿循環停在哪一格都可能，開頭用 0.25 秒從當下那格淡進起身的第 1 格
+function riseMode(clip, next) {
+  const base = view.sprite.startsWith('clip:') ? view.sprite : null;
+  let t0 = -1;
+  return {
+    name: 'rise',
+    update(dt, t) {
+      if (t0 < 0 && ensureClip(clip)) t0 = t;
+      const T = clipSeconds(clip);
+      if (t0 >= 0 && t - t0 < T && playClip(clip, t - t0, base ? { base, fadeIn: 0.25 } : undefined)) return true;
+      if (t0 < 0 && waitingClip(clip) && t < 3) return true;
+      setMode(next);
+      return true;
     },
   };
 }
@@ -674,25 +742,19 @@ function flyMode() {
   };
 }
 
-// 飛行姿勢共三種：fly1（54，舊的單張圖，另有頭髮與蕾絲裙飄逸版，約每 0.5 秒與本體交替）、
-// fly3（新的「飛行」片段，自帶起飛）、fly2（「優雅起飛+落地」的滑翔段，另有 fly2up／fly2down）。舊的 53 系列已移除。
-function pickFly() { const k = ['fly1', 'fly2', 'fly3'].filter(n => S.manifest.sprites[n] || clipDef(n)); return k[Math.floor(Math.random() * k.length)]; }
+// 飛行姿勢兩種，都是新動畫：fly3（「飛行+落地」）、fly2（「優雅起飛+落地」），各有起飛／落地片段。舊的 53、54 系列已移除。
+function pickFly() { const k = ['fly2', 'fly3'].filter(clipDef); return k.length ? k[Math.floor(Math.random() * k.length)] : 'fly2'; }
 function flyView(kind, t, fade = true) {
-  if (clipDef(kind) && playClip(kind, t, fade ? { base: S.manifest.sprites[kind] ? kind : 'idle', fadeIn: 0.2 } : undefined)) return;
+  if (clipDef(kind) && playClip(kind, t, fade ? { base: 'idle', fadeIn: 0.2 } : undefined)) return;
+  if (waitingClip(kind)) return; // 載入中沿用前一格
   view.blend = null;
-  view.sprite = flySprite(kind, t);
+  view.sprite = 'idle';
 }
 // 緩降（側身張開雙手）：新的片段在原地循環，往下飄是程式移動位置
 function floatView(t) {
   if (playClip('float', t)) return;
   view.blend = null;
   view.sprite = 'float';
-}
-function flySprite(kind, t) {
-  if (!S.manifest.sprites[kind]) return 'idle'; // 只有片段的姿勢，片段還沒載好時先站著
-  // 有飄逸版（54-2）就每 0.5 秒換一次，頭髮跟裙子像在風裡擺動
-  if (S.manifest.sprites[`${kind}_hair`] && Math.floor(t / 0.5) % 2 === 1) return `${kind}_hair`;
-  return eyes(kind, t, 0.2);
 }
 
 // 坐／趴到別的視窗上：飛過去 → 停著（視窗一動或消失就輕輕飄下來）→ 坐夠了飛回地面。只有 Windows 能取得視窗位置。
@@ -964,6 +1026,7 @@ function claudeMode(body) {
     },
     update(dt, t) {
       if (clip && playClip(clip, t, { base: 'idle', fadeIn: 0.25 })) return true;
+      if (clip && waitingClip(clip) && t < 1.5) return true; // 載入中沿用前一格，不閃舊圖
       if (body === 'faint' && lieView('faint2down', 'faint2', t)) return true;
       if (body === 'exhausted' && lieView('blanketdown', 'blanket', t)) return true;
       switch (body) {
@@ -1117,6 +1180,8 @@ function onPointerUp(e) {
     clicks.push(nowT);
     const shy = clicks.length >= 3;
     if (shy) clicks = [];
+    // 唱歌、拉琴、指揮時被點：停下來回到站姿（不跳開心）
+    if (mode && PERFORMING.has(mode.name)) { clicks = []; setMode(idleMode()); return; }
     hearts(shy ? 3 : 2);
     const react = () => setMode(poseMode(shy ? 'shy' : 'happy'));
     // 飛行中、坐在視窗邊緣被點到：人不能站在空中反應，先飄落到地面再做
@@ -1202,7 +1267,7 @@ function chooseFree() {
   // 冷落太久就睡午覺，有人來（滑鼠、Claude）就醒
   if (idleFor > 5 * 60 && onGround()) return lieMode();
   // 坐著打盹（新動作）：冷落兩分鐘以上，有機會坐下打瞌睡，再久就會側躺睡午覺
-  if (idleFor > 120 && onGround() && clipDef('doze') && Math.random() < 0.35) return poseMode('doze');
+  if (idleFor > 120 && onGround() && clipDef('doze') && Math.random() < 0.35) return dozeMode();
   if (idleFor > 80 && onGround() && Math.random() < 0.7) return sitMode();
   const hour = new Date().getHours();
   const late = hour >= 23 || hour < 6;
@@ -1232,7 +1297,7 @@ function tick(dt) {
   if (r.activity !== 'idle' || r.body !== 'free') S.lastClaudeActive = performance.now();
 
   const busy = mode && INTERACTIONS.has(mode.name);
-  const waking = mode && mode.name === 'wake';
+  const waking = mode && (mode.name === 'wake' || mode.name === 'rise' || PERFORMING.has(mode.name));
   if (!busy && !waking) {
     if (r.body !== 'free') {
       // Claude 有狀態：在空中先落地，再擺對應姿勢
@@ -1372,7 +1437,14 @@ async function start() {
   host.onAction((k) => {
     S.lastInteraction = performance.now();
     if (k === 'land') { refreshGeom(true).then(() => setMode(fallMode())); return; }
-    const make = k === 'walk' ? walkMode : k === 'fly' ? flyMode : k === 'sit' ? sitMode : k === 'nap' ? lieMode : k === 'wake' ? wakeMode : k === 'perch' ? () => perchMode({ manual: true }) : () => poseMode(k);
+    // 'sing'／'violin'／'conduct'＝只做動作；'sing:檔名' 等＝配音樂
+    const [pk, ...rest] = k.split(':');
+    if (PERFORMING.has(pk)) {
+      const make = () => performMode(pk, rest.join(':') || null);
+      if (!onGround()) setMode(fallMode(() => setMode(make()))); else setMode(make());
+      return;
+    }
+    const make = k === 'walk' ? walkMode : k === 'fly' ? flyMode : k === 'sit' ? sitMode : k === 'doze' ? dozeMode : k === 'nap' ? lieMode : k === 'wake' ? wakeMode : k === 'perch' ? () => perchMode({ manual: true }) : () => poseMode(k);
     if (k !== 'fly' && !onGround()) { setMode(fallMode(() => setMode(make()))); return; }
     setMode(make());
   });

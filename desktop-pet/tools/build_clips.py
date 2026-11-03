@@ -14,7 +14,7 @@ HANG = (330, 30)             # 拎起：頭頂中心對到這一點（舊 drag �
 #   once    ：整段播一次，最後淡回站姿
 #   intro   ：開頭只播一次的範圍；loop：之後反覆播的範圍；xfade：循環接縫的交叉淡化秒數
 #   k       ：額外縮放。坐姿影片是近景，頭比站姿大；用頭部橫帶寬度對齊新版站姿（197px）算出來
-#   sprites ：同時輸出成單張圖（取代同名的舊立繪），{單張圖名: 格序}；片段還沒載好、淡入淡出、碰撞判定都用它
+#   sprites ：同時輸出成單張圖（2026-11-03 起所有單張圖都來自新動畫，舊立繪全部退場）（取代同名的舊立繪），{單張圖名: 格序}；片段還沒載好、淡入淡出、碰撞判定都用它
 #   wired   ：False 代表只切格與輸出，不接進桌寵
 #   range   ：只用這幾格（祐標出能用的範圍）；intro／loop／sprites 的格序仍用原本的編號
 #   stabilize：逐格把外框中心拉回同一高度（原地循環用）
@@ -27,28 +27,28 @@ HANG = (330, 30)             # 拎起：頭頂中心對到這一點（舊 drag �
 #   seat    ：坐／趴在視窗邊緣用：原圖裡「貼著視窗邊」那條線的 y；seat_to：那條線要放到畫布的哪個 y（省略就照錨點換算）
 CLIPS = [
     # 伸懶腰：最後一格不是站姿，播完再倒著（1.5 倍速）退回第 1 格的站姿，不用淡出重影
-    dict(no=1,  src='伸懶腰',     key='stretchall', anchor='stand', once=True, register=False,
+    dict(no=1,  src='伸懶腰',     key='stretchall', anchor='stand', once=True, register=False, sprites={'stretch': 8},
          derive=[dict(key='stretch', seq=[(1, 16), (15, 1, 1.5)])]),
     dict(no=2,  src='側睡',       key='sleepside', anchor='lie',   loop=(1, 16), xfade=0.3, k=0.93, sprites={'sleepside': 1}),
-    dict(no=3,  src='出錯困惑',   key='confused',  anchor='stand', intro=(1, 9), loop=(10, 16), xfade=0.2),
-    # 坐下（抱膝）：片段叫 seat1，跟日式跪坐（sit1／seiza）分開
-    dict(no=4,  src='坐下',       key='seat1',     anchor='sit',   loop=(8, 16), intro=(1, 7), xfade=0.3, k=0.80),
-    dict(no=5,  src='坐下2',      key='sit2',      anchor='sit',   loop=(1, 16), xfade=0.4, k=0.70, sprites={'sit2': 1}),
-    dict(no=6,  src='坐著打盹',   key='doze',      anchor='sit',   loop=(1, 16), xfade=0.3, k=0.84),
-    dict(no=7,  src='完成歡呼',   key='cheer',     anchor='stand', loop=(1, 16), xfade=0.2),
-    dict(no=8,  src='工作中',     key='work',      anchor='stand', intro=(1, 4), loop=(5, 16), xfade=0.2),
+    dict(no=3,  src='出錯困惑',   key='confused',  anchor='stand', intro=(1, 9), loop=(10, 16), xfade=0.2, sprites={'confused': 10}),
+    # 坐下（#04）、坐下2（#05）、坐著打盹（#06）、跪坐（#23）由 #44–46「坐下＋起身」取代（沒有起身動作）
+    dict(no=4,  src='坐下',       key='seat1',     anchor='sit',   loop=(8, 16), intro=(1, 7), xfade=0.3, k=0.80, wired=False),
+    dict(no=5,  src='坐下2',      key='sit2_old',  anchor='sit',   loop=(1, 16), xfade=0.4, k=0.70, wired=False),
+    dict(no=6,  src='坐著打盹',   key='doze_old',  anchor='sit',   loop=(1, 16), xfade=0.3, k=0.84, wired=False),
+    dict(no=7,  src='完成歡呼',   key='cheer',     anchor='stand', loop=(1, 16), xfade=0.2, sprites={'cheer': 1}),
+    dict(no=8,  src='工作中',     key='work',      anchor='stand', intro=(1, 4), loop=(5, 16), xfade=0.2, sprites={'work': 5, 'work2': 12}),
     dict(no=9,  src='工作中(揮手版本)', key='waitwave', anchor='stand', intro=(1, 6), loop=(7, 16), xfade=0.25),
-    dict(no=10, src='思考',       key='think',     anchor='stand', intro=(1, 9), loop=(10, 16), xfade=0.2),
-    dict(no=11, src='打哈欠',     key='yawn',      anchor='stand', once=True),
-    dict(no=12, src='揮手打招呼', key='wave',      anchor='stand', loop=(1, 16), xfade=0.15),
+    dict(no=10, src='思考',       key='think',     anchor='stand', intro=(1, 9), loop=(10, 16), xfade=0.2, sprites={'think': 10}),
+    dict(no=11, src='打哈欠',     key='yawn',      anchor='stand', once=True, sprites={'yawn': 8}),
+    dict(no=12, src='揮手打招呼', key='wave',      anchor='stand', loop=(1, 16), xfade=0.15, sprites={'wave': 4}),
     # 昏倒（#13）祐決定不用，只留昏倒2（faintb）
     dict(no=13, src='昏倒',       key='faint',     anchor='lie',   intro=(1, 9), loop=(10, 16), xfade=0.3, wired=False),
     dict(no=14, src='昏倒2',      key='faintb',    anchor='lie',   intro=(1, 6), loop=(7, 15), xfade=0.3),
-    dict(no=15, src='東張西望',   key='curious',   anchor='stand', once=True),
+    dict(no=15, src='東張西望',   key='curious',   anchor='stand', once=True, sprites={'curious': 8}),
     # 東張西望2（#16）祐覺得銜接不順，改用 #38 新版
     dict(no=16, src='東張西望2',  key='curious2_old', anchor='side', once=True, wired=False),
     dict(no=17, src='禱告',       key='pray',      anchor='stand', intro=(1, 5), loop=(6, 16), xfade=0.25),
-    dict(no=18, src='站著打瞌睡', key='sleep',     anchor='stand', loop=(1, 16), xfade=0.3),
+    dict(no=18, src='站著打瞌睡', key='sleep',     anchor='stand', loop=(1, 16), xfade=0.3, sprites={'sleep': 1}),
     dict(no=19, src='緩降',       key='float_old', anchor='stand', loop=(1, 10), xfade=0.25, wired=False),
     # 飛行（#20）由 #41 飛行+落地取代
     dict(no=20, src='飛行',       key='fly3_old',  anchor='stand', intro=(1, 8), loop=(9, 16), xfade=0.25, wired=False),
@@ -56,7 +56,7 @@ CLIPS = [
     dict(no=21, src='飛行2',      key='fly2_old',  anchor='fly',   loop=(1, 16), xfade=0.3, k=1.05, wired=False),
     # 2026-11-03 第二批：取代舊立繪（27／28 站姿與眨眼、61 跪坐、pose、77 害羞、30 摸頭、59／68 拎起）
     dict(no=22, src='站著發呆（idle，眨眼）', name='站著發呆', key='idle', anchor='stand', loop=(1, 16), xfade=0.3, sprites={'idle': 1, 'blink': 9}),
-    dict(no=23, src='坐下休息（日式跪坐）', name='跪坐', key='seiza', anchor='sit', loop=(1, 16), xfade=0.3, k=0.80, sprites={'sit1': 1, 'sit1_b': 10}),
+    dict(no=23, src='坐下休息（日式跪坐）', name='跪坐', key='seiza', anchor='sit', loop=(1, 16), xfade=0.3, k=0.80, wired=False),
     dict(no=24, src='擺姿勢',     key='pose',      anchor='stand', once=True, sprites={'pose': 8}),
     dict(no=25, src='害羞',       key='shy',       anchor='stand', once=True, sprites={'shy': 7}),
     dict(no=26, src='摸頭',       key='pat',       anchor='stand', intro=(1, 3), loop=(4, 16), xfade=0.3, sprites={'pat': 8}),
@@ -119,6 +119,48 @@ CLIPS = [
                  dict(key='walkL', seq=(6, 20), loop=True, xfade=0.15),            # 第 21 格≈第 6 格
                  dict(key='walkLstop', seq=(21, 25))]),                            # 21–23 還在走、24–25 轉回正面
     dict(no=38, src='東張西望2新版', key='curious2', anchor='track', track=[(1, 1.175)], ground_src=681, once=True, sprites={'curious2': 10}),
+    # 坐下＋起身（2026-11-03）：首幀是站著發呆，一段影片做完「坐下 → 坐著 → 站回原位」。鏡頭不動，站姿身高 638px（×1.095 對齊站著發呆），腳底在原圖 y=702
+    # 坐著時裙擺鋪在腳前面，比腳底低十幾 px，出畫布的幾 px 剛好在地面線下，看不到
+    # 坐著的循環都用來回播：頭會慢慢偏，單向接回去會跳
+    # 祐：眨眼、點頭、擺頭太頻繁，所以循環開頭那格先停住幾秒（(格, 格, 速度)，每格原本 0.2 秒，速度 0.2/停秒數）再動一次
+    dict(no=44, src='跪坐+起身', name='跪坐起身', key='kneelall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='kneeldown', seq=(1, 5)),                                # 站著 → 拉裙擺跪下
+                 # 跪坐：13 停 4.6 秒 → 14–16 閉眼 → 退回 14，一輪約 5.6 秒（祐：12 頭會動、17 手腳都動）
+                 dict(key='kneel', seq=[(13, 13, 0.2 / 4.6), (14, 16), (15, 14)], loop=True, xfade=0.2),
+                 dict(key='kneelup', seq=(17, 25))],                               # 立起一膝、站起來
+         sprites={'sit1': 10, 'sit1_b': 16}),
+    dict(no=45, src='雙手放膝的坐姿+起身', name='放膝坐起身', key='kneesall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='kneesdown', seq=(1, 5)),
+                 # 雙手放膝：8 停 1.9 秒 → 9–12 擺頭 → 退回 9，一輪約 3.5 秒（祐：15 手的位置移動了）
+                 dict(key='knees', seq=[(8, 8, 0.2 / 1.9), (9, 12), (11, 9)], loop=True, xfade=0.2),
+                 dict(key='kneesup', seq=(13, 25))],                               # 雙手撐膝站起
+         sprites={'sit2': 10}),
+    # 抱膝那段閉著眼睛把臉埋在手臂上，比較像打瞌睡，祐指定取代坐著打盹（#06）
+    dict(no=46, src='抱膝+起身', name='抱膝起身', key='dozeall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='dozedown', seq=(1, 5)),
+                 # 打盹：9 停 4.6 秒 → 10–13 點頭 → 退回 10，一輪約 6 秒（祐：14 會讓循環出問題）
+                 dict(key='doze', seq=[(9, 9, 0.2 / 4.6), (10, 13), (12, 10)], loop=True, xfade=0.3),
+                 dict(key='dozeup', seq=(14, 25))],                                # 抬頭醒來、站起
+         sprites={'doze': 11}),
+    # 唱歌（2026-11-03）：像樂團女高音，一手放胸前、一手伸向前方。1–4 抬手、5–16 唱（來回播）、17–25 放下手回站姿。鏡頭跟坐下＋起身一樣
+    dict(no=47, src='唱歌', key='singall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='singstart', seq=(1, 4)),
+                 dict(key='sing', seq=[(5, 16), (15, 6)], loop=True, xfade=0.2),
+                 dict(key='singend', seq=(17, 25))]),
+    # 小提琴（#48，25 格）由 #49 幀數加倍的新版取代
+    dict(no=48, src='小提琴', key='violin_old', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False, wired=False),
+    # 小提琴新版（2026-11-03，7×7＝49 格、每格約 0.1 秒）：1–14 拿起琴、架上肩、舉弓，15–48 拉琴；最後一格不用，收琴把 14→1 倒著播
+    # 第 7 格琴是半透明的（影片在變形），開頭和收琴都跳過；拉琴 15–48 來回播，倒著播剛好是弓往回拉
+    dict(no=49, src='小提琴新版', key='violinall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='violinstart', seq=[(1, 6), (8, 14)]),
+                 dict(key='violin', seq=[(15, 48), (47, 16)], loop=True, xfade=0.1),
+                 dict(key='violinend', seq=[(14, 8), (6, 1)])]),
+    # 指揮（2026-11-03，7×7＝49 格）：1–3 舉起指揮棒，4–33 指揮（每 6 格一拍組，第 4、10、16、22、28 格都是棒子往左平指），34–49 放下棒子、睜眼回站姿
+    # 打拍子有方向，倒著播會怪，所以循環單向播 4–33，第 33 格接回第 4 格
+    dict(no=50, src='指揮', key='conductall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='conductstart', seq=(1, 3)),
+                 dict(key='conduct', seq=(4, 33), loop=True, xfade=0.1),
+                 dict(key='conductend', seq=(34, 49))]),
 ]
 
 

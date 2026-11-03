@@ -1,0 +1,8 @@
+node_modules/
+# 音樂檔不進 git（錄音有各自的版權），曲子由使用者自己放
+app/music/**/*.mp3
+app/music/**/*.wav
+app/music/**/*.ogg
+app/music/**/*.m4a
+app/music/**/*.flac
+app/music/**/*.aac

@@ -471,6 +471,30 @@ const ACTIONS = [
   ['pray', '禱告'], ['doze', '坐著打盹'],
 ];
 
+// 歌曲與樂曲：檔名（去掉副檔名）就是曲名；只在使用者自己點曲子時才演出
+// sing：app/music/ 的歌曲（唱歌）；violin：app/music/violin/ 的樂曲（拉小提琴）；conduct：app/music/conduct/ 的管弦樂（指揮）
+const MUSIC_DIR = path.join(__dirname, 'music');
+const MUSIC_SUB = { sing: '', violin: 'violin', conduct: 'conduct' };
+const PLAIN_LABEL = { sing: '只唱動作（不放音樂）', violin: '只拉琴（不放音樂）', conduct: '只指揮（不放音樂）' };
+const MUSIC_EXT = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac']);
+function listSongs(kind = 'sing') {
+  try {
+    return fs.readdirSync(path.join(MUSIC_DIR, MUSIC_SUB[kind] || '')).filter((f) => MUSIC_EXT.has(path.extname(f).toLowerCase()))
+      .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+      .map((file) => ({ file, title: path.basename(file, path.extname(file)) }));
+  } catch (_) { return []; }
+}
+function songMenu(kind) {
+  const songs = listSongs(kind);
+  const where = ['app/music', MUSIC_SUB[kind]].filter(Boolean).join('/');
+  return [
+    ...(songs.length ? songs.map((s) => ({ label: s.title, click: () => send('pet:action', `${kind}:${s.file}`) }))
+      : [{ label: `（${where} 裡還沒有曲子）`, enabled: false }]),
+    { type: 'separator' },
+    { label: PLAIN_LABEL[kind], click: () => send('pet:action', kind) },
+  ];
+}
+
 function menuTemplate() {
   const sizeItems = SIZE_PRESETS.map(([label, v]) => ({
     label: `${label}（${v}px）`, type: 'radio', checked: settings.size === v, click: () => setSize(v),
@@ -484,6 +508,9 @@ function menuTemplate() {
     { type: 'separator' },
     { label: '尺寸', submenu: sizeItems },
     { label: '動作', submenu: ACTIONS.map(([k, l]) => ({ label: l, click: () => send('pet:action', k) })) },
+    { label: '歌曲', submenu: songMenu('sing') },
+    { label: '小提琴', submenu: songMenu('violin') },
+    { label: '指揮', submenu: songMenu('conduct') },
     {
       label: '測試狀態',
       submenu: [
@@ -633,6 +660,12 @@ function setupIPC() {
   ipcMain.on('panel:set', (_e, key, value) => updateSetting(key, value));
   ipcMain.on('panel:force', (_e, k) => setForced(k || null));
   ipcMain.on('panel:action', (_e, k) => send('pet:action', k));
+  ipcMain.handle('music:list', (_e, kind) => listSongs(kind));
+  ipcMain.on('music:open', (_e, kind) => {
+    const dir = path.join(MUSIC_DIR, MUSIC_SUB[kind] || '');
+    fs.mkdirSync(dir, { recursive: true });
+    shell.openPath(dir);
+  });
   // 模擬器：走跟真正 hooks 一樣的寫檔路徑
   ipcMain.on('sim:hook', (_e, input) => { bridge.applyHookEvent({ session_id: 'simulator', cwd: 'simulator', ...input }); pollSnapshot(); });
   ipcMain.on('sim:usage', (_e, five, week) => {

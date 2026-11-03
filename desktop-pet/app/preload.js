@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld('panelHost', {
   simHook: (input) => ipcRenderer.send('sim:hook', input),
   simUsage: (five, week) => ipcRenderer.send('sim:usage', five, week),
   simClear: () => ipcRenderer.send('sim:clear'),
+  musicList: (kind) => ipcRenderer.invoke('music:list', kind),
+  musicOpen: (kind) => ipcRenderer.send('music:open', kind),
   voiceList: () => ipcRenderer.invoke('voice:list'),
   voiceRead: (key, i) => ipcRenderer.invoke('voice:read', key, i),
   voiceGen: (o) => ipcRenderer.invoke('voice:gen', o),

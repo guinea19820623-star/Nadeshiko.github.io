@@ -71,7 +71,8 @@ test('manifest.clips：每個片段的格數、時間、bbox 與檔案都對得�
     assert.strictEqual(def.durations.length, n, `${name} durations 數量不對`);
     assert.strictEqual(def.bbox.length, n, `${name} bbox 數量不對`);
     assert.strictEqual(def.head.length, n, `${name} head 數量不對`);
-    assert.ok(def.durations.every((s) => s > 0 && s < 2), `${name} 有不合理的秒數`);
+    // 坐姿循環開頭那格會刻意停住幾秒（眨眼、點頭不要太頻繁），所以上限放到 6 秒
+    assert.ok(def.durations.every((s) => s > 0 && s < 6), `${name} 有不合理的秒數`);
     if (def.mode === 'loop') {
       const [l0, l1] = def.loop;
       assert.ok(l0 >= 0 && l1 < n && l1 > l0, `${name} loop 範圍錯誤`);
