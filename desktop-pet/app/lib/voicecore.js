@@ -16,7 +16,8 @@
       out[key] = arr.map((l, i) => {
         const base = fileBase(key, i);
         const ext = EXTS.find((e) => have.has(`${base}.${e}`));
-        return { text: l.text, file: ext ? `${base}.${ext}` : null };
+        const vol = Number(l.vol) > 0 ? Math.min(200, Number(l.vol)) : 100; // 這句的音量（%，祐 2026-11-08）：有的句子生成出來比較大聲或小聲
+        return { text: l.text, file: ext ? `${base}.${ext}` : null, vol };
       });
     }
     return out;

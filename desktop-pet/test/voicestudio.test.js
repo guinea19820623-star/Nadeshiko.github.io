@@ -78,3 +78,16 @@ test('adopt：換第 i 句、新增、上限、換音檔（舊副檔名清掉）
   assert.throws(() => s.adopt(dir, 'nope', 0, { text: 'x' }, null), /沒有這個狀態/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('adopt：音量 vol 存進台詞表（100 不寫、範圍 20~200）', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-'));
+  fs.copyFileSync(path.join(__dirname, '../app/voice/lines.json'), path.join(dir, 'lines.json'));
+  const read = () => JSON.parse(fs.readFileSync(path.join(dir, 'lines.json'), 'utf8')).wave[0];
+  s.adopt(dir, 'wave', 0, { text: '嗨～', vol: 75 }, null);
+  assert.deepStrictEqual(read(), { text: '嗨～', vol: 75 });
+  s.adopt(dir, 'wave', 0, { text: '嗨～', vol: 100 }, null);
+  assert.deepStrictEqual(read(), { text: '嗨～' });
+  s.adopt(dir, 'wave', 0, { text: '嗨～', vol: 999 }, null);
+  assert.strictEqual(read().vol, 200);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

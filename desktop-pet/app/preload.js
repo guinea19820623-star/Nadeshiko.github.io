@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('petHost', {
   onSettings: on('pet:settings'),
   onForce: on('pet:force'),
   onAction: on('pet:action'),
+  onEmote: on('pet:emote'),
   onDragMove: on('pet:drag-move'),
   onRecover: on('pet:recover'),
   onSummon: on('pet:summon'),

@@ -41,3 +41,8 @@ test('pet.js 用到的 say 鍵都在台詞表裡', () => {
   const missing = [...keys].filter((k) => !lines[k] && !['kind'].includes(k));
   assert.deepEqual(missing, []);
 });
+
+test('build：每句音量 vol（%），沒寫是 100，上限 200', () => {
+  const b = v.build({ wave: [{ text: 'a', vol: 70 }, { text: 'b' }, { text: 'c', vol: 500 }] }, []);
+  assert.deepStrictEqual(b.wave.map((x) => x.vol), [70, 100, 200]);
+});

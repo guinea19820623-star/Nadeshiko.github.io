@@ -3,7 +3,7 @@ const host = window.panelHost;
 const $ = (id) => document.getElementById(id);
 
 const TOGGLES = [
-  ['random', '隨機動作'], ['walk', '在螢幕下緣走動'], ['fly', '偶爾飛起來'],
+  ['walk', '在螢幕下緣走動'], ['fly', '偶爾飛起來'],
   ['voice', '語音'], ['perch', '坐到視窗邊緣'], ['bubble', '頭上小字'], ['staminaAlways', '體力條常駐'], ['alwaysOnTop', '保持在最上層'],
 ];
 const FORCE = [
@@ -33,7 +33,7 @@ const VLABEL = {
   drag: '被拎起', dizzy: '摔暈', fly: '飛行', sit: '坐下休息', wake: '睡醒', hello: '打招呼', thinking: '思考中', working: '工作中',
   waiting: '等你確認', done: '完成', error: '出錯', tired: '疲憊', exhausted: '5h 用完（睡覺）', faint: '暈倒（週上限）', perch: '坐在視窗邊緣',
   shy: '害羞', greet_morning: '早安問候', greet_noon: '中午問候', greet_afternoon: '下午問候', greet_evening: '晚上問候', greet_night: '深夜問候',
-  perch_lie: '趴在視窗上', drop: '飄落',
+  perch_lie: '趴在視窗上', drop: '飄落', mail: '收信', pray: '禱告', nod: '點頭贊同', shake: '搖頭困惑',
 };
 let voiceData = null;   // { lines, files, url, voice, max }
 let studioAudio = null;
@@ -80,6 +80,7 @@ function render() {
     $(k).value = settings[k];
     $(`${k}-out`).textContent = `${settings[k]}%`;
   }
+  $('actMode').value = settings.actMode || 'mixed';
   for (const b of document.querySelectorAll('#toggles input')) b.checked = !!settings[b.dataset.key];
   for (const b of document.querySelectorAll('#force button')) b.classList.toggle('on', (b.dataset.key || null) === (forced || null));
 }
@@ -100,6 +101,7 @@ async function main() {
   bindRange('napAt', 'napAt', (v) => `${v}%`);
   $('dir').textContent = `狀態資料夾：${init.stateDir}`;
 
+  $('actMode').onchange = (e) => host.set('actMode', e.target.value);
   for (const [key, label] of TOGGLES) {
     const l = document.createElement('label');
     l.className = 'check';
@@ -145,10 +147,22 @@ async function main() {
 }
 
 // ---------- 語音工作室 ----------
-function playBytes(bytes, mime) {
+// lineVol：這句自己的音量（%），跟總音量相乘；超過 100% 用 Web Audio 增益放大
+let studioCtx = null;
+function playBytes(bytes, mime, lineVol = 100) {
   if (studioAudio) { studioAudio.pause(); URL.revokeObjectURL(studioAudio.src); }
   const a = new Audio(URL.createObjectURL(new Blob([bytes], { type: mime })));
-  a.volume = Math.max(0, Math.min(1, (settings.volume || 60) / 100));
+  const v = ((settings.volume || 60) / 100) * (lineVol / 100);
+  a.volume = Math.max(0, Math.min(1, v));
+  if (v > 1) {
+    try {
+      studioCtx = studioCtx || new AudioContext();
+      const g = studioCtx.createGain();
+      studioCtx.createMediaElementSource(a).connect(g).connect(studioCtx.destination);
+      a.volume = 1; g.gain.value = Math.min(2, v);
+      studioCtx.resume().catch(() => {});
+    } catch (_) { /* 放大失敗就用最大聲 */ }
+  }
   studioAudio = a;
   a.play().catch(() => {});
 }
@@ -170,6 +184,7 @@ function renderVoice() {
       <div class="f"><span>顯示</span><input type="text" class="t-text" placeholder="頭上顯示的字"></div>
       <div class="f"><span>唸</span><input type="text" class="t-say" placeholder="實際唸的字（空白＝跟顯示一樣）"></div>
       <div class="f"><span>句尾</span><span>補 <input type="number" class="t-pad" min="0" max="5" step="1"> 個「……」，再接 <input type="number" class="t-tail" min="0" max="1500" step="50"> 毫秒靜音</span></div>
+      <div class="f"><span>音量</span><span><input type="range" class="t-vol" min="20" max="200" step="5"> <b class="t-volv"></b>（這句自己的大小聲，跟總音量相乘）</span></div>
       <div class="f"><span>次數</span><span>連生 <input type="number" class="t-n" min="1" max="5" step="1" value="1"> 次，挑一個最好的</span></div>
       <div class="btns"><button class="b-play">▶ 試聽現有</button><button class="b-gen primary">生成</button></div>
       <div class="takes"></div><p class="vmsg"></p>`;
@@ -177,15 +192,21 @@ function renderVoice() {
     d.querySelector('.t-say').value = l.say || '';
     d.querySelector('.t-pad').value = l.pad == null ? 1 : l.pad;
     d.querySelector('.t-tail').value = l.tail || 0;
+    const volIn = d.querySelector('.t-vol');
+    const volOut = d.querySelector('.t-volv');
+    volIn.value = Number(l.vol) > 0 ? l.vol : 100;
+    volOut.textContent = `${volIn.value}%`;
+    volIn.oninput = () => { volOut.textContent = `${volIn.value}%`; };
     const play = d.querySelector('.b-play');
     if (isNew || !have(i)) play.disabled = true;
     play.onclick = async () => {
       const r = await host.voiceRead(key, i);
-      if (r) playBytes(r.bytes, r.mime); else vmsg(d, '這句還沒有音檔', true);
+      if (r) playBytes(r.bytes, r.mime, Number(volIn.value)); else vmsg(d, '這句還沒有音檔', true);
     };
     const entry = () => ({
       text: d.querySelector('.t-text').value, say: d.querySelector('.t-say').value,
       pad: Number(d.querySelector('.t-pad').value), tail: Number(d.querySelector('.t-tail').value),
+      vol: Number(volIn.value),
     });
     const adoptBtn = (label, takeId) => {
       const b = document.createElement('button');
@@ -196,11 +217,11 @@ function renderVoice() {
         voiceData = { ...voiceData, lines: r.lines, files: r.files };
         renderVoice();
         const nb = $('v-lines').querySelectorAll('.vline')[i];
-        if (nb) vmsg(nb, takeId ? '已採用，撫子下次開口就是新的聲音' : '已存台詞（音檔沒變）');
+        if (nb) vmsg(nb, takeId ? '已採用，撫子下次開口就是新的聲音' : '已存台詞與音量（音檔沒變）');
       };
       return b;
     };
-    if (!isNew) d.querySelector('.btns').appendChild(adoptBtn('只存文字（不換音檔）', null));
+    if (!isNew) d.querySelector('.btns').appendChild(adoptBtn('只存文字與音量（不換音檔）', null));
     d.querySelector('.b-gen').onclick = async (ev) => {
       const e = entry();
       if (!e.text.trim() && !e.say.trim()) { vmsg(d, '請先填要唸的字', true); return; }
@@ -218,14 +239,14 @@ function renderVoice() {
         row.className = 'take';
         const p = document.createElement('button');
         p.textContent = `▶ 版本 ${k + 1}`;
-        p.onclick = () => playBytes(t.bytes, 'audio/wav');
+        p.onclick = () => playBytes(t.bytes, 'audio/wav', Number(volIn.value));
         const ms = document.createElement('span');
         ms.className = 'ms';
         ms.textContent = t.ms == null ? '' : `${(t.ms / 1000).toFixed(2)} 秒`;
         row.append(p, ms, adoptBtn('採用這個', t.id));
         d.querySelector('.takes').appendChild(row);
       });
-      if (r.takes[0]) playBytes(r.takes[0].bytes, 'audio/wav');
+      if (r.takes[0]) playBytes(r.takes[0].bytes, 'audio/wav', Number(volIn.value));
     };
     box.appendChild(d);
   }

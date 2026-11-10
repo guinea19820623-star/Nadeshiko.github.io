@@ -106,6 +106,8 @@ function adopt(dir, key, i, entry, wav) {
   if (say && say !== clean.text) clean.say = say;
   if (entry.pad != null && entry.pad !== 1) clean.pad = entry.pad | 0;
   if (entry.tail) clean.tail = entry.tail | 0;
+  const vol = Math.round(Number(entry.vol));
+  if (vol > 0 && vol !== 100) clean.vol = Math.max(20, Math.min(200, vol));
   arr[i] = clean;
   const name = wav ? saveAudio(dir, voice.fileBase(key, i), wav) : null;
   fs.writeFileSync(file, formatLines(lines));

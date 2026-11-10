@@ -102,3 +102,16 @@ test('安裝腳本：保留原本設定、可移除、保留原狀態列', () =>
   assert.deepStrictEqual(s, original);
   assert.ok(fs.readdirSync(path.dirname(settingsPath)).some((f) => f.startsWith('settings.json.bak-')));
 });
+
+test('動作通道：requestAction 寫 act.json，takeAction 只取新的、10 秒內的', () => {
+  assert.throws(() => bridge.requestAction('rm -rf'), /不合法/);
+  const d = bridge.requestAction('wave', '嗨～', 1000);
+  assert.strictEqual(d.action, 'wave');
+  assert.strictEqual(d.say, '嗨～');
+  assert.strictEqual(bridge.takeAction(null, 10000, 5000).id, d.id);
+  assert.strictEqual(bridge.takeAction(d.id, 10000, 5000), null);      // 已經演過
+  assert.strictEqual(bridge.takeAction(null, 10000, 20000), null);     // 太舊
+  const out = execFileSync(process.execPath, [path.join(ROOT, 'tools/act.js'), 'curtsy'], { env, encoding: 'utf8' });
+  assert.match(out, /curtsy/);
+  assert.strictEqual(bridge.takeAction(d.id).action, 'curtsy');
+});

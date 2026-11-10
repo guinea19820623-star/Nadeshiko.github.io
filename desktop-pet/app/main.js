@@ -9,9 +9,6 @@ const bridge = require('./lib/bridge');
 const { layout } = require('./lib/statecore');
 
 const BUBBLE_H = layout(250).bubbleH; // 視窗上方留給頭上小字的高度
-const SIZE_PRESETS = [
-  ['迷你', 140], ['小', 190], ['中', 250], ['大', 330], ['特大', 440],
-];
 const SIZE_MIN = 100;
 const SIZE_MAX = 640;
 
@@ -21,7 +18,8 @@ const DEFAULT_SETTINGS = {
   y: null,
   walk: true,
   fly: true,
-  random: true,
+  random: true,      // 由 actMode 決定（不是「撫子控制」就隨機），畫面端看這個
+  actMode: 'mixed',  // 動作控制方式（祐 2026-11-08）：random 隨機／claude 撫子控制／mixed 混合
   bubble: true,
   staminaAlways: false,
   voice: true,
@@ -48,9 +46,14 @@ let saveTimer = null;
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
+const ACT_MODES = [['random', '隨機'], ['claude', '撫子控制'], ['mixed', '混合（隨機＋撫子控制）']];
+
 function loadSettings() {
   const s = bridge.readJSON(settingsFile());
   if (s) settings = { ...DEFAULT_SETTINGS, ...s };
+  // 舊設定只有「隨機動作」勾選框：關掉的當作撫子控制，開著的當作混合
+  if (!s || !ACT_MODES.some(([k]) => k === s.actMode)) settings.actMode = s && s.random === false ? 'claude' : 'mixed';
+  settings.random = settings.actMode !== 'claude';
   settings.size = clampSize(settings.size);
   settings.bubbleScale = Math.max(70, Math.min(220, Math.round(Number(settings.bubbleScale) || 100)));
 }
@@ -375,6 +378,10 @@ function setupVoiceIPC() {
 }
 
 function updateSetting(key, value) {
+  if (key === 'actMode') {
+    if (!ACT_MODES.some(([k]) => k === value)) return;
+    settings.random = value !== 'claude';
+  }
   settings[key] = value;
   if (key === 'alwaysOnTop' && pet) applyOnTop();
   if (key === 'size') return setSize(value);
@@ -442,7 +449,27 @@ function registerHotkey() {
 }
 
 // ---------- Claude 狀態檔輪詢 ----------
+// 撫子（Claude）叫的動作：只轉選單裡有的動作與 EMOTE_EXTRA（之後新素材的點頭、搖頭、回頭看等先列在這）
+const EMOTE_EXTRA = ['happy', 'pose', 'perch_lie']; // perch_lie：趴到視窗上緣，待到被點或視窗動了
+let lastActId = null;
+function pollAction() {
+  const a = bridge.takeAction(lastActId);
+  if (!a) return;
+  lastActId = a.id;
+  if (settings.actMode === 'random') return; // 「隨機」模式不接撫子的動作
+  // 唱歌、小提琴、指揮：在該資料夾找曲名含 song 的第一首（找不到就只做動作）；跟使用者自己點曲子走同一條
+  if (MUSIC_SUB[a.action] != null) {
+    const want = String(a.song || '').trim();
+    const hit = want ? listSongs(a.action).find((s) => s.title.includes(want)) : null;
+    send('pet:action', hit ? `${a.action}:${hit.file}` : a.action);
+    return;
+  }
+  const ok = ACTIONS.some(([k]) => k === a.action) || EMOTE_EXTRA.includes(a.action);
+  if (ok) send('pet:emote', { action: a.action, say: a.say || '' });
+}
+
 function pollSnapshot() {
+  pollAction();
   const snap = bridge.readSnapshot();
   const json = JSON.stringify(snap);
   if (json !== lastSnapshotJSON) {
@@ -468,8 +495,9 @@ const ACTIONS = [
   ['walk', '走一走'], ['fly', '飛一圈'], ['yawn', '打哈欠'], ['stretch', '伸懶腰'],
   ['wave', '揮手'], ['curious', '東張西望'], ['cheer', '歡呼'], ['nap', '睡午覺'],
   ['sit', '坐下休息'], ['perch', '坐到視窗邊緣'], ['shy', '害羞'], ['wake', '睡醒爬起來'],
-  ['pray', '禱告'], ['doze', '坐著打盹'], ['curtsy', '提屈膝禮'],
+  ['pray', '禱告'], ['doze', '坐著打盹'], ['standdoze', '站著打瞌睡'], ['curtsy', '提屈膝禮'],
   ['pirouette', '芭蕾：旋轉'], ['arabesque', '芭蕾：阿拉貝斯克'],
+  ['pose', '擺姿勢'], ['nod', '點頭贊同'], ['shake', '搖頭困惑'], ['mail', '收信'],
 ];
 
 // 歌曲與樂曲：檔名（去掉副檔名）就是曲名；只在使用者自己點曲子時才演出
@@ -497,17 +525,10 @@ function songMenu(kind) {
 }
 
 function menuTemplate() {
-  const sizeItems = SIZE_PRESETS.map(([label, v]) => ({
-    label: `${label}（${v}px）`, type: 'radio', checked: settings.size === v, click: () => setSize(v),
-  }));
-  sizeItems.push({ type: 'separator' },
-    { label: '放大一點', accelerator: 'CommandOrControl+Plus', click: () => setSize(settings.size * 1.1) },
-    { label: '縮小一點', accelerator: 'CommandOrControl+-', click: () => setSize(settings.size / 1.1) },
-    { label: '自訂…（控制面板）', click: openPanel });
+  // 尺寸、音量、頭上小字大小只放在控制面板（尺寸也可以 Ctrl＋滾輪），右鍵選單簡潔（祐 2026-11-08）
   return [
-    { label: `撫子 · ${settings.size}px`, enabled: false },
+    { label: '撫子', enabled: false },
     { type: 'separator' },
-    { label: '尺寸', submenu: sizeItems },
     { label: '動作', submenu: ACTIONS.map(([k, l]) => ({ label: l, click: () => send('pet:action', k) })) },
     { label: '歌曲', submenu: songMenu('sing') },
     { label: '小提琴', submenu: songMenu('violin') },
@@ -521,26 +542,11 @@ function menuTemplate() {
       ],
     },
     { type: 'separator' },
-    { label: '隨機動作', type: 'checkbox', checked: settings.random, click: (i) => updateSetting('random', i.checked) },
-    { label: '在螢幕下緣走動', type: 'checkbox', checked: settings.walk, click: (i) => updateSetting('walk', i.checked) },
-    { label: '偶爾飛起來', type: 'checkbox', checked: settings.fly, click: (i) => updateSetting('fly', i.checked) },
-    { label: '偶爾坐到視窗邊緣', type: 'checkbox', checked: settings.perch, click: (i) => updateSetting('perch', i.checked) },
-    { label: '語音', type: 'checkbox', checked: settings.voice, click: (i) => updateSetting('voice', i.checked) },
     {
-      label: '音量',
-      submenu: [20, 40, 60, 80, 100].map((v) => ({
-        label: `${v}%`, type: 'radio', checked: Math.abs(settings.volume - v) < 10, click: () => updateSetting('volume', v),
-      })),
+      label: '動作控制方式',
+      submenu: ACT_MODES.map(([k, l]) => ({ label: l, type: 'radio', checked: settings.actMode === k, click: () => updateSetting('actMode', k) })),
     },
-    { label: '頭上小字', type: 'checkbox', checked: settings.bubble, click: (i) => updateSetting('bubble', i.checked) },
-    {
-      label: '頭上小字大小',
-      submenu: [['小', 80], ['標準', 100], ['大', 130], ['特大', 170], ['超大', 210]].map(([l, v]) => ({
-        label: `${l}（${v}%）`, type: 'radio', checked: Math.abs(settings.bubbleScale - v) < 15, click: () => updateSetting('bubbleScale', v),
-      })),
-    },
-    { label: '體力條常駐', type: 'checkbox', checked: settings.staminaAlways, click: (i) => updateSetting('staminaAlways', i.checked) },
-    { label: '保持在最上層', type: 'checkbox', checked: settings.alwaysOnTop, click: (i) => updateSetting('alwaysOnTop', i.checked) },
+    // 走動、飛、坐視窗邊緣、語音、頭上小字、體力條、最上層這些開關只放在控制面板，右鍵選單保持乾淨（祐 2026-11-08）
     {
       label: '開機自動啟動', type: 'checkbox',
       checked: app.getLoginItemSettings().openAtLogin,

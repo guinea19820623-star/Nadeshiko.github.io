@@ -21,6 +21,7 @@ const ACTION_LINES = {
   yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '好耶～', nap: 'Zzz…',
   curious: '嗯？', pose: '♪', happy: '嘿嘿♪', pat: '再摸一下嘛…', drag: '哇！放我下來～', dizzy: '暈…',
   pray: '願一切順利～', doze: 'Zzz…', curtsy: '日安～', pirouette: '轉一圈～', arabesque: '♪～',
+  nod: '嗯嗯！', shake: '唔…不對吧？', mail: '有信來囉～',
 };
 
 const S = {
@@ -82,14 +83,31 @@ function chooseLine(key) {
   return arr[i];
 }
 
-function playFile(file) {
+// 超過 100% 的音量：audio.volume 最多 1，再大聲要接 Web Audio 的增益（每個 Audio 只能接一次）
+let audioCtx = null;
+function setLoudness(a, v) {
+  if (v <= 1 && !a._gain) { a.volume = clamp(v, 0, 1); return; }
+  try {
+    if (!a._gain) {
+      audioCtx = audioCtx || new AudioContext();
+      const src = audioCtx.createMediaElementSource(a);
+      a._gain = audioCtx.createGain();
+      src.connect(a._gain).connect(audioCtx.destination);
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    a.volume = 1;
+    a._gain.gain.value = clamp(v, 0, 2);
+  } catch (_) { a.volume = clamp(v, 0, 1); }
+}
+
+function playFile(file, lineVol = 100) {
   const s = S.settings;
   if (!s.voice || !file || !(s.volume > 0)) return;
   try {
     let a = audioCache[file];
     if (!a) { a = new Audio(`${VOICE_DIR}${file}?v=${voiceVer}`); a.preload = 'auto'; audioCache[file] = a; } // 第一次要用才載入
     if (nowPlaying && nowPlaying !== a) nowPlaying.pause();
-    a.volume = clamp(s.volume / 100, 0, 1);
+    setLoudness(a, (s.volume / 100) * (lineVol / 100));
     a.currentTime = 0;
     nowPlaying = a;
     a.play().catch(() => {}); // 音檔壞掉或被擋下就靜音，不影響動作
@@ -108,7 +126,7 @@ function voiceReady(key) {
 function say(key, ms = 1800, opts = {}) {
   const line = chooseLine(key);
   const text = line ? line.text : (ACTION_LINES[key] || key);
-  if (line && line.file && voiceReady(key)) playFile(line.file);
+  if (line && line.file && voiceReady(key)) playFile(line.file, line.vol);
   if (!opts.mute) S.say = { text, until: performance.now() + ms };
   return text;
 }
@@ -116,7 +134,7 @@ function say(key, ms = 1800, opts = {}) {
 // Claude 狀態切換時只出聲，字仍由狀態機（含工具名、剩餘體力等即時資訊）決定
 function sayClaude(body) {
   const line = chooseLine(body);
-  if (line && line.file && voiceReady(body)) playFile(line.file);
+  if (line && line.file && voiceReady(body)) playFile(line.file, line.vol);
 }
 
 function moveTo(x, y) {
@@ -355,6 +373,15 @@ function breathe(t, amp = 0.008, period = 3.2) {
   view.sx = 1 - amp * 0.45 * s;
 }
 
+// 躺著、坐著打盹時疊在影片上的呼吸（祐 2026-11-08）：只上下起伏（以腳底／地面為準），
+// 影片播完躺下（坐下）那段才開始，前 2 秒慢慢加大，接縫不會跳
+function breatheOver(t, amp, period) {
+  if (t <= 0) { view.sy = 1; view.sx = 1; return; }
+  const s = Math.sin((t / period) * Math.PI * 2) * Math.min(1, t / 2);
+  view.sy = 1 + amp * s;
+  view.sx = 1;
+}
+
 // 待機：呼吸 + 眨眼
 function idleMode(duration = rand(5, 12), sprite = 'idle') {
   let nextBlink = rand(1.5, 4);
@@ -384,7 +411,7 @@ function idleMode(duration = rand(5, 12), sprite = 'idle') {
 
 // 動作 → 動畫片段（manifest.clips）。東張西望有正面與側身兩種，在 poseMode 裡隨機挑
 // 歡呼：Claude 完成時用循環版 cheer，自己歡呼整段播一次 cheerall（最後放下手回站姿）
-const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheerall', pray: 'pray', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy', curtsy: 'curtsy', pirouette: 'pirouette', arabesque: 'arabesque' };
+const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheerall', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy', curtsy: 'curtsy', pirouette: 'pirouette', arabesque: 'arabesque', nod: 'nod', shake: 'shake', mail: 'mail' };
 
 // 定點姿勢（打哈欠、伸懶腰、揮手…）
 function poseMode(kind, duration) {
@@ -398,10 +425,12 @@ function poseMode(kind, duration) {
     happy: { sprite: 'happy', dur: 1.4 },
     shy: { sprite: 'shy', dur: 2.8 },
     nap: { sprite: 'sleep', dur: Infinity },
-    pray: { sprite: 'idle', dur: 7 },
     curtsy: { sprite: 'curtsy', dur: 4 },
     pirouette: { sprite: 'pirouette', dur: 5 },
     arabesque: { sprite: 'arabesque', dur: 4 },
+    nod: { sprite: 'idle', dur: 3.4 },
+    shake: { sprite: 'idle', dur: 4.2 },
+    mail: { sprite: 'idle', dur: 4.1 },
   }[kind];
   // 有動畫片段就播片段，沒有（或還沒載好）退回舊的單張圖加程式動作
   const clip = kind === 'curious' ? (Math.random() < 0.5 ? 'curious' : 'curious2') : POSE_CLIP[kind];
@@ -464,18 +493,31 @@ function greetMode(period = periodOf(), clip = 'wave') {
 // SEATS[種類]：down／loop／rise 三個片段，base＝片段還沒載好時的單張圖
 const SEATS = {
   kneel: { down: 'kneeldown', loop: 'kneel', rise: 'kneelup', base: 'sit1' },   // 跪坐
-  knees: { down: 'kneesdown', loop: 'knees', rise: 'kneesup', base: 'sit2' },   // 雙手放膝
-  doze: { down: 'dozedown', loop: 'doze', rise: 'dozeup', base: 'doze' },       // 抱膝打盹
+  knees: { down: 'kneesdown', loop: 'knees', rise: 'kneesup', base: 'sit2', breath: [0.008, 4.2] }, // 雙手放膝（13、22 各停 5 秒，靠程式呼吸）
+  doze: { down: 'dozedown', loop: 'doze', rise: 'dozeup', base: 'doze' },
+  // 站著打瞌睡：不是坐姿，但一樣是「閉眼 → 循環 → 醒來回站姿」。join 0：閉眼 1–4 直接接 5，不淡（淡 0.4 秒會讓第 4 格多停，閉眼比睜眼慢）
+  standdoze: { down: 'standdozedown', loop: 'standdoze', rise: 'standdozeup', base: 'sleep', join: 0 },
+  // 擺姿勢：16→1 擺出來、1–12 來回、回站姿 1→16（從當下那格接著播）
+  pose: { down: 'posein', loop: 'poseloop', rise: 'poseout', base: 'pose', join: 0 },
+  // 禱告：1–11 合掌閉眼、11–33 來回祈禱、回站姿從當下那格播到 46
+  pray: { down: 'praydown', loop: 'prayloop', rise: 'prayup', base: 'praying', join: 0 }, // 抱膝打盹：影片本身就在呼吸，不再疊程式呼吸（breath：[幅度, 秒]）
 };
 // 坐著的動作：時間到或被打斷時，setMode 會先接 riseMode 播起身（見 mode.rise）
 function seatedMode(name, kind, dur, line) {
   const seat = SEATS[kind];
+  let t0 = -1;
   return {
     name,
     rise: seat.rise,
     enter() { say(line, 2200); ensureClip(seat.down); ensureClip(seat.loop); ensureClip(seat.rise); },
     update(dt, t) {
-      if (lieView(seat.down, seat.loop, t)) return t < dur;
+      // 坐下（閉眼）片段載好那一刻才開始算，免得載入時第一格被跳過；最多等 3 秒
+      if (t0 < 0) { if (ensureClip(seat.down) || !waitingClip(seat.down) || t > 3) t0 = t; else return true; }
+      const lt = t - t0;
+      if (lieView(seat.down, seat.loop, lt, seat.join)) {
+        if (seat.breath) breatheOver(lt - clipSeconds(seat.down), seat.breath[0], seat.breath[1]);
+        return t < dur;
+      }
       view.sprite = eyes(seat.base, t, 0.4);
       breathe(t, 0.007, 3.8);
       return t < dur;
@@ -489,6 +531,18 @@ function sitMode() {
 // 坐著打盹：抱膝把臉埋在手臂上
 function dozeMode() {
   return seatedMode('doze', 'doze', rand(25, 50), 'doze');
+}
+// 站著打瞌睡：閉眼、站著點頭呼吸，醒來倒著播回站姿（之後接累了、深夜）
+function standDozeMode() {
+  return seatedMode('standdoze', 'standdoze', rand(20, 40), 'doze');
+}
+// 擺姿勢：維持幾秒再回站姿
+function posingMode() {
+  return seatedMode('pose', 'pose', rand(5, 8), 'pose');
+}
+// 禱告：合掌祈禱幾秒再放下手
+function prayMode() {
+  return seatedMode('pray', 'pray', rand(6, 9), 'pray');
 }
 // 唱歌、拉小提琴、指揮（祐 2026-11-03）：只在使用者自己點曲子時才演出。開始（播一次）→ 循環到音樂播完 → 收尾（借用起身的機制）
 // file：音樂檔名（唱歌在 app/music/、小提琴在 app/music/violin/、指揮在 app/music/conduct/）；沒有就只做動作 20 秒。
@@ -532,16 +586,26 @@ function performMode(kind, file) {
 // 起身：播完接原本要換的動作（next）；片段沒有就直接換
 // 坐姿循環停在哪一格都可能，開頭用 0.25 秒從當下那格淡進起身的第 1 格
 function riseMode(clip, next) {
-  const base = view.sprite.startsWith('clip:') ? view.sprite : null;
+  let base = view.sprite.startsWith('clip:') ? view.sprite : null;
+  // 起身片段裡有畫面上正在用的那格（坐著循環的格通常都在起身片段裡）：直接從那格接著播，不用淡入（祐：不要跳格）
+  let skip = 0;
+  const cm = /^clip:(.+):(\d+)$/.exec(view.sprite);
+  const cur = cm && clipDef(cm[1]);
+  const rd = clipDef(clip);
+  if (cur && rd) {
+    const j = rd.frames.indexOf(cur.frames[+cm[2]]);
+    if (j >= 0) { skip = clipCore.sum(rd.durations, 0, j - 1); base = null; }
+  }
   let t0 = -1;
   return {
     name: 'rise',
     update(dt, t) {
       if (t0 < 0 && ensureClip(clip)) t0 = t;
       const T = clipSeconds(clip);
-      if (t0 >= 0 && t - t0 < T && playClip(clip, t - t0, base ? { base, fadeIn: 0.25 } : undefined)) return true;
+      const lt = t0 >= 0 ? t - t0 + skip : 0;
+      if (t0 >= 0 && lt < T && playClip(clip, lt, base ? { base, fadeIn: 0.25 } : undefined)) return true;
       if (t0 < 0 && waitingClip(clip) && t < 3) return true;
-      setMode(next);
+      setMode(this.after ? this.after() : next); // after：起身途中又被點，站好再反應（見點擊處理）
       return true;
     },
   };
@@ -549,12 +613,13 @@ function riseMode(clip, next) {
 
 // 太久沒人理：側身躺下睡覺，直到有人摸她、點她或 Claude 開始工作
 // 躺下片段播一次，接著在睡著的循環片段反覆（接縫淡 0.4 秒）；回傳 true＝畫好了，或還在載入（沿用前一格）
-function lieView(down, loop, t) {
+function lieView(down, loop, t, join = 0.4) {
   const dd = clipDef(down);
   const dl = dd ? clipSeconds(down) : 0;
   if (t < dl && playClip(down, t)) return true;
   const base = dd && clipRes[down] && clipRes[down].state === 'ready' ? clipKey(down, dd.frames.length - 1) : null;
-  if (playClip(loop, Math.max(0, t - dl), base ? { base, fadeIn: 0.4 } : undefined)) return true;
+  // join：從「躺下」最後一格淡進循環的秒數（0＝影片本來就連續，直接接）
+  if (playClip(loop, Math.max(0, t - dl), base && join > 0 ? { base, fadeIn: join } : undefined)) return true;
   return waitingClip(down) || waitingClip(loop);
 }
 
@@ -566,7 +631,7 @@ function lieMode() {
     wakeFrom: 'nap2',
     enter() { say('nap', 2200); ensureClip('nap2down'); ensureClip('nap2'); },
     update(dt, t) {
-      if (lieView('nap2down', 'nap2', t)) return true;
+      if (lieView('nap2down', 'nap2', t)) { breatheOver(t - clipSeconds('nap2down'), 0.014, 4.8); return true; }
       view.sprite = 'sleepside';
       breathe(t, 0.012, 4.8);
       return true;
@@ -590,9 +655,11 @@ function wakeMode(from) {
       if (t0 < 0 && ensureClip(clip)) t0 = t;
       // 開頭從躺著那格淡入、結尾淡回站姿，兩段用的底圖不同
       const lt = t - t0;
-      if (t0 >= 0 && playClip(clip, lt, base && lt < 0.5 ? { base, fadeIn: 0.5 } : { base: 'idle', fadeOut: 0.2, dur: T })) return lt < T;
-      if (waitingClip(clip)) return t < 3;
-      return false;
+      let going = false;
+      if (t0 >= 0 && playClip(clip, lt, base && lt < 0.5 ? { base, fadeIn: 0.5 } : { base: 'idle', fadeOut: 0.2, dur: T })) going = lt < T;
+      else if (waitingClip(clip)) going = t < 3;
+      if (!going && this.after) { setMode(this.after()); return true; } // 爬起來途中又被點：站好再反應
+      return going;
     },
   };
 }
@@ -787,7 +854,8 @@ function perchSeat(w, v) {
   return { y: edgeY - S.bubbleH - info.seat * k, k, info };
 }
 
-async function pickPerch() {
+// only：'lie' 只找能趴的、'sit' 只找能坐的（撫子叫的「趴到視窗上」用）
+async function pickPerch(only) {
   let res = { list: [], error: null };
   try { res = await host.windows(); } catch (e) { res = { list: [], error: String(e.message || e) }; }
   const wa = S.workArea;
@@ -796,6 +864,7 @@ async function pickPerch() {
   all.forEach((w, idx) => {
     if (w.w < S.size * 0.55 || w.x >= wa.x + wa.width || w.x + w.w <= wa.x) return;
     for (const kind of PERCH_KINDS) {
+      if (only && (only === 'lie') !== (kind.kind === 'lie')) continue;
       const sprite = kind.sprites.filter((n) => S.manifest.sprites[n])[Math.floor(Math.random() * kind.sprites.length)] || kind.sprites[0];
       if (!S.manifest.sprites[sprite]) continue;
       const v = { ...kind, sprite };
@@ -832,7 +901,8 @@ function perchMode(opts = {}) {
   let why = null;
   const side = Math.random() < 0.5 ? -1 : 1;
   const flyKind = pickFly();
-  const dur = rand(40, 110);
+  // stay：撫子叫的（或之後要常駐的）就一直待著，Claude 工作時也不下來；點她一下、視窗動了才飄下來（祐 2026-11-08）
+  const dur = opts.stay ? Infinity : rand(40, 110);
   let sitT = 0;
   let seekPromise = null;
   const seatPos = (w, v) => {
@@ -866,6 +936,7 @@ function perchMode(opts = {}) {
   }).catch(() => {});
   return {
     name: 'perch',
+    stay: !!opts.stay,
     ownsPosition: true,
     enter() { if (clipDef(flyKind)) ensureClip(flyKind); ensureClip('float'); },
     update(dt, t) {
@@ -874,7 +945,7 @@ function perchMode(opts = {}) {
         view.sprite = 'idle';
         breathe(t);
         if (!seekPromise) {
-          seekPromise = pickPerch().then(({ ok, why: w }) => {
+          seekPromise = pickPerch(opts.only).then(({ ok, why: w }) => {
             if (!ok) { why = w; phase = 'none'; return; }
             target = { w: ok.w, v: { ...ok.v } };
             target.v.sprite = ok.v.sprite;
@@ -1022,23 +1093,39 @@ function fallMode(after) {
 // 等你確認用「拿平板揮手」那組、打招呼用單純揮手；暈倒只用「昏倒2」（側躺），舊的新版「昏倒」祐決定不用。
 // 睡覺（5 小時用完）照祐的指定仍用舊的側睡 62。
 const CLAUDE_CLIP = { thinking: 'think', working: 'work', waiting: 'waitwave', hello: 'wave', done: 'cheer', error: 'confused' };
+// 49 格新版（有進場、循環、退場）：進場播一次、循環反覆，狀態一變先從當下那格播退場回站姿（跟坐姿同一套 riseMode）
+const CLAUDE_SEQ = {
+  working: { down: 'workdown', loop: 'workloop', rise: 'workup' },
+  error: { down: 'errdown', loop: 'errloop', rise: 'errup' },
+  thinking: { down: 'thinkdown', loop: 'thinkloop', rise: 'thinkup' },
+  waiting: { down: 'waitdown', loop: 'waitloop', rise: 'waitup' },
+};
 
 function claudeMode(body) {
   // 暈倒：「昏倒2+清醒」倒著播加速＝倒下，閉眼那 10 格循環，醒來正著播後半段（取代舊 24 系列）
   // 額度用完：「蓋棉被睡+起床」倒著播＝鑽進棉被躺下，閉眼那 12 格循環，醒來正著播掀被站起
-  const clip = CLAUDE_CLIP[body];
+  const seq = CLAUDE_SEQ[body] && clipDef(CLAUDE_SEQ[body].loop) ? CLAUDE_SEQ[body] : null;
+  const clip = seq ? null : CLAUDE_CLIP[body];
+  let t0 = -1;
   return {
     name: `claude:${body}`,
     body,
+    rise: seq ? seq.rise : undefined,
     wakeFrom: body === 'faint' ? 'faint2' : body,
     lying: body === 'exhausted' || body === 'faint',
     enter() {
+      if (seq) { ensureClip(seq.down); ensureClip(seq.loop); ensureClip(seq.rise); }
       if (clip) ensureClip(clip);
       if (body === 'tired') { ensureClip('tired'); ensureClip('yawn'); }
       if (body === 'faint') { ensureClip('faint2down'); ensureClip('faint2'); }
       if (body === 'exhausted') { ensureClip('blanketdown'); ensureClip('blanket'); }
     },
     update(dt, t) {
+      if (seq) {
+        // 進場片段載好那一刻才開始算（最多等 3 秒），之後進場 → 循環，影片本身連續不用淡入
+        if (t0 < 0) { if (ensureClip(seq.down) || !waitingClip(seq.down) || t > 3) t0 = t; else return true; }
+        if (lieView(seq.down, seq.loop, t - t0, 0)) return true;
+      }
       if (clip && playClip(clip, t, { base: 'idle', fadeIn: 0.25 })) return true;
       if (clip && waitingClip(clip) && t < 1.5) return true; // 載入中沿用前一格，不閃舊圖
       if (body === 'faint' && lieView('faint2down', 'faint2', t)) return true;
@@ -1197,6 +1284,8 @@ function onPointerUp(e) {
     // 唱歌、拉琴、指揮時被點：停下來回到站姿（不跳開心）
     if (mode && PERFORMING.has(mode.name)) { clicks = []; setMode(idleMode()); return; }
     hearts(shy ? 3 : 2);
+    // 坐著／躺著被點會先起身；起身途中再點（連點兩下），不要打斷，排到站好之後再開心跳或害羞
+    if (mode && (mode.name === 'rise' || mode.name === 'wake')) { mode.after = () => poseMode(shy ? 'shy' : 'happy'); return; }
     const react = () => setMode(poseMode(shy ? 'shy' : 'happy'));
     // 飛行中、坐在視窗邊緣被點到：人不能站在空中反應，先飄落到地面再做
     if (!onGround()) { if (mode && mode.name !== 'fall') setMode(fallMode(react)); return; }
@@ -1231,12 +1320,20 @@ function detectStroke(x) {
 // 摸頭撒嬌：持續撫摸就一直害羞，停手一下就結束
 function patMode() {
   let lastHeart = 0;
+  // 摸頭49：閉眼合手 → 左右搖擺循環 → 停手後從當下那格播到站姿（rise）；沒有新片段才用舊的 16 格
+  const seq = !!clipDef('patloop');
+  let t0 = -1;
   return {
     name: 'pat',
-    enter() { say('pat', 2000); hearts(3); ensureClip('pat'); },
+    rise: seq ? 'patup' : undefined,
+    enter() { say('pat', 2000); hearts(3); if (seq) { ensureClip('patdown'); ensureClip('patloop'); ensureClip('patup'); } else ensureClip('pat'); },
     update(dt, t) {
-      // 新的摸頭片段：先閉上眼、雙手合在胸前，之後循環；沒載好才用單張圖加程式搖晃
-      if (!playClip('pat', t, { fadeIn: 0.15 })) {
+      let drawn = false;
+      if (seq) {
+        if (t0 < 0 && (ensureClip('patdown') || !waitingClip('patdown') || t > 1)) t0 = t;
+        drawn = t0 < 0 || lieView('patdown', 'patloop', t - t0, 0);
+      }
+      if (!drawn && !playClip('pat', t, { fadeIn: 0.15 })) {
         view.sprite = 'pat';
         breathe(t, 0.01, 2.2);
         view.rot = Math.sin(t * 5) * 0.015;
@@ -1272,7 +1369,9 @@ function claudeState() {
 }
 
 const INTERACTIONS = new Set(['drag', 'fall', 'pat', 'happy']);
-const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze', 'curtsy', 'pirouette', 'arabesque']);
+// 撫子回覆時可以叫、而且 Claude 工作中也會先演完的短動作（長的坐下、睡覺不算，免得卡住工作狀態）
+const EMOTE_SHORT = new Set(['yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'happy', 'shy', 'pray', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail']);
+const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze', 'standdoze', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail']);
 
 function chooseFree() {
   const s = S.settings;
@@ -1294,7 +1393,7 @@ function chooseFree() {
     wave: 5,
     cheer: 4,
     pose: 8,
-    pray: clipDef('pray') ? 3 : 0,
+    pray: clipDef('prayloop') ? 3 : 0,
     ballet: clipDef('pirouette') || clipDef('arabesque') ? 4 : 0, // 芭蕾不用配樂，偶爾跳一小段
     perch: s.perch && onGround() ? 5 : 0,
   });
@@ -1302,6 +1401,8 @@ function chooseFree() {
     const b = ['pirouette', 'arabesque'].filter(clipDef);
     return onGround() ? poseMode(b[Math.floor(Math.random() * b.length)]) : fallMode();
   }
+  if (k === 'pose') return onGround() ? posingMode() : fallMode();
+  if (k === 'pray') return onGround() ? prayMode() : fallMode();
   if (k === 'walk') return onGround() ? walkMode() : fallMode();
   if (k === 'fly') return flyMode();
   if (k === 'perch') return perchMode();
@@ -1315,8 +1416,8 @@ function tick(dt) {
   const r = claudeState();
   if (r.activity !== 'idle' || r.body !== 'free') S.lastClaudeActive = performance.now();
 
-  const busy = mode && INTERACTIONS.has(mode.name);
-  const waking = mode && (mode.name === 'wake' || mode.name === 'rise' || PERFORMING.has(mode.name));
+  const busy = mode && (INTERACTIONS.has(mode.name) || mode.emote);
+  const waking = mode && (mode.name === 'wake' || mode.name === 'rise' || PERFORMING.has(mode.name) || mode.stay);
   if (!busy && !waking) {
     if (r.body !== 'free') {
       // Claude 有狀態：在空中先落地，再擺對應姿勢
@@ -1453,7 +1554,15 @@ async function start() {
       await refreshGeom();
     }
   });
-  host.onAction((k) => {
+  host.onAction((k) => runAction(k));
+  // 撫子（Claude）回覆時叫的動作：tools/act.js 寫 act.json → 主程序轉過來。
+  // 短動作在 Claude 工作中也會先演完再回去工作（mode.emote 讓狀態機先等一下）；say＝頭上要顯示的字
+  host.onEmote((e) => {
+    if (!e || !e.action) return;
+    runAction(e.action, true);
+    if (e.say) S.say = { text: String(e.say).slice(0, 40), until: performance.now() + 3200 };
+  });
+  function runAction(k, emote) {
     S.lastInteraction = performance.now();
     if (k === 'land') { refreshGeom(true).then(() => setMode(fallMode())); return; }
     // 'sing'／'violin'／'conduct'＝只做動作；'sing:檔名' 等＝配音樂
@@ -1463,10 +1572,12 @@ async function start() {
       if (!onGround()) setMode(fallMode(() => setMode(make()))); else setMode(make());
       return;
     }
-    const make = k === 'walk' ? walkMode : k === 'fly' ? flyMode : k === 'sit' ? sitMode : k === 'doze' ? dozeMode : k === 'nap' ? lieMode : k === 'wake' ? wakeMode : k === 'perch' ? () => perchMode({ manual: true }) : () => poseMode(k);
+    const base = k === 'walk' ? walkMode : k === 'fly' ? flyMode : k === 'sit' ? sitMode : k === 'doze' ? dozeMode : k === 'standdoze' ? standDozeMode : k === 'pose' ? posingMode : k === 'pray' ? prayMode : k === 'nap' ? lieMode : k === 'wake' ? wakeMode : k === 'perch' ? () => perchMode({ manual: true, stay: !!emote })
+      : k === 'perch_lie' ? () => perchMode({ manual: true, stay: !!emote, only: 'lie' }) : () => poseMode(k);
+    const make = emote && EMOTE_SHORT.has(k) ? () => Object.assign(base(), { emote: true }) : base;
     if (k !== 'fly' && !onGround()) { setMode(fallMode(() => setMode(make()))); return; }
     setMode(make());
-  });
+  }
   // 休眠喚醒後：清掉殘留的按住狀態，並重新宣告穿透狀態（跟主程序一致）
   host.onRecover(() => {
     drag.down = null; drag.active = false;

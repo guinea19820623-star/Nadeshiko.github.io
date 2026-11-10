@@ -6,6 +6,7 @@
 //   sessions/<session_id>.json  每個 Claude Code 工作階段目前在做什麼
 //   usage.json                  狀態列收到的 5 小時 / 7 天用量
 //   limit.json                  StopFailure(rate_limit) 時寫入：撞到上限了
+//   act.json                    撫子（Claude）回覆時叫的動作：{ action, say?, t, id }（tools/act.js 寫入）
 
 const fs = require('fs');
 const os = require('os');
@@ -162,7 +163,31 @@ function pruneSessions(maxAgeMs = 24 * 3600 * 1000, now = Date.now()) {
   } catch (_) {}
 }
 
+// ---------- 動作通道：讓 Claude 在回覆時叫桌寵做動作 ----------
+// 名稱只收英數字（實際能不能演由桌寵決定）；say 是頭上要顯示的字（最多 40 字）
+// song：唱歌／小提琴／指揮要放的曲子（曲名的一部分就行，例如「第三樂章」），由桌寵在自己的 music 資料夾裡找
+function requestAction(action, say, now = Date.now(), song = '') {
+  const a = String(action || '').trim();
+  if (!/^[a-z][a-z0-9_]{0,23}$/.test(a)) throw new Error(`動作名稱不合法：${action}`);
+  const data = { action: a, t: now, id: `${now}-${process.pid}-${Math.random().toString(36).slice(2, 7)}` };
+  if (say) data.say = String(say).slice(0, 40);
+  if (song) {
+    const s = String(song).trim().slice(0, 60);
+    if (/[\\/]|\.\./.test(s)) throw new Error(`曲名不合法：${song}`);
+    data.song = s;
+  }
+  writeJSON(path.join(stateDir(), 'act.json'), data);
+  return data;
+}
+
+// 讀新的動作要求：跟上次的 id 不同、而且是 maxAgeMs 內寫的才算（桌寵沒開時寫的不會補演）
+function takeAction(lastId, maxAgeMs = 10000, now = Date.now()) {
+  const d = readJSON(path.join(stateDir(), 'act.json'));
+  if (!d || !d.id || d.id === lastId || !(now - d.t <= maxAgeMs) || !d.action) return null;
+  return d;
+}
+
 module.exports = {
   stateDir, writeJSON, readJSON, mapHookEvent, applyHookEvent, applyStatusline,
-  readSnapshot, pruneSessions, safeId,
+  readSnapshot, pruneSessions, safeId, requestAction, takeAction,
 };
