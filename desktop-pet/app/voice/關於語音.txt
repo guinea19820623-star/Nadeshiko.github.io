@@ -1,4 +1,7 @@
-這個資料夾的語音是祐用 Breeze-TTS-2 生成的（聲音 agent_girl），只是一個範例。
+這個資料夾的語音是祐用 Breeze TTS 2 生成的 AI 合成語音（聲音 agent_girl），只是一個範例。
+
+授權：Breeze TTS 2 的模型與自架生成的聲音依 BreezeBlue Research and Non-Commercial License，只能用在研究與非商業用途。
+這些音檔不能商用；轉用時請標示「語音由 Breeze TTS 2 生成（AI 合成）」。模型頁：https://huggingface.co/BreezeBlue/Breeze-TTS-2
 
 每個人喜歡的音色不同，請自行挑選自己喜歡的品味。
 想換聲音：右鍵 →「控制面板與模擬器…」→「語音工作室」，選一句、生成、試聽，滿意再採用；

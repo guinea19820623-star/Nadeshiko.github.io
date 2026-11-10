@@ -364,7 +364,7 @@ python tools/build_clips.py --src <精靈表資料夾> --out <desktop-pet 資料
 
 ## 10. 語音台詞
 
-> **關於附的語音：**`app/voice/` 裡的 96 句是祐用 Breeze-TTS-2 生成的（聲音 `agent_girl`），只是一個範例。**每個人喜歡的音色不同，請自行挑選自己喜歡的品味**：用下面的「語音工作室」換成你喜歡的聲音重新生成，或把語音關掉只看字都可以。
+> **關於附的語音：**`app/voice/` 裡的音檔是祐用 [Breeze TTS 2](https://huggingface.co/BreezeBlue/Breeze-TTS-2) 生成的 AI 合成語音（聲音 `agent_girl`），只是一個範例；依 BreezeBlue 的授權**只能非商業使用**。**每個人喜歡的音色不同，請自行挑選自己喜歡的品味**：用下面的「語音工作室」換成你喜歡的聲音重新生成，或把語音關掉只看字都可以。
 
 ### 運作方式
 - 台詞表：`app/voice/lines.json`。每個狀態 2~3 句，`text` 是頭上小字，`say` 是實際唸出來的字（省略就唸 `text`，例如 `Zzz…` 唸成「呼……呼……」）。
@@ -426,3 +426,11 @@ desktop-pet/
 ├─ test/                                   node --test
 └─ docs/states.png                         各狀態總覽
 ```
+
+## 12. 授權
+
+分開授權：
+- **程式碼**：[MIT](LICENSE)。可以自由使用、修改、商用，保留著作權聲明就好。
+- **撫子這個角色與素材**（`app/sprites/`、`app/assets/`、`app/voice/` 的音檔、`docs/` 的展示圖，以及她的名字、外型與設定）：[CC BY-NC 4.0](LICENSE-ASSETS.md)。可以分享、改作，但要標明出處，**不能拿去賣或做任何商業用途**；想商用請先聯絡祐。
+- **語音檔**另受 [Breeze TTS 2](https://huggingface.co/BreezeBlue/Breeze-TTS-2) 的 BreezeBlue Research and Non-Commercial License 約束：AI 合成語音，一律不能商用，轉用時請標示「語音由 Breeze TTS 2 生成」。
+- 不附任何音樂檔。
