@@ -21,7 +21,7 @@ const ACTION_LINES = {
   yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '好耶～', nap: 'Zzz…',
   curious: '嗯？', pose: '♪', happy: '嘿嘿♪', pat: '再摸一下嘛…', drag: '哇！放我下來～', dizzy: '暈…',
   pray: '願一切順利～', doze: 'Zzz…', curtsy: '日安～', pirouette: '轉一圈～', arabesque: '♪～',
-  nod: '嗯嗯！', shake: '唔…不對吧？', mail: '有信來囉～',
+  nod: '嗯嗯！', shake: '唔…不對吧？', mail: '有信來囉～', gift: '聖誕快樂～', birthday: '生日快樂～',
 };
 
 const S = {
@@ -411,7 +411,7 @@ function idleMode(duration = rand(5, 12), sprite = 'idle') {
 
 // 動作 → 動畫片段（manifest.clips）。東張西望有正面與側身兩種，在 poseMode 裡隨機挑
 // 歡呼：Claude 完成時用循環版 cheer，自己歡呼整段播一次 cheerall（最後放下手回站姿）
-const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheerall', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy', curtsy: 'curtsy', pirouette: 'pirouette', arabesque: 'arabesque', nod: 'nod', shake: 'shake', mail: 'mail' };
+const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheerall', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy', curtsy: 'curtsy', pirouette: 'pirouette', arabesque: 'arabesque', nod: 'nod', shake: 'shake', mail: 'mail', gift: 'gift', birthday: 'birthday' };
 
 // 定點姿勢（打哈欠、伸懶腰、揮手…）
 function poseMode(kind, duration) {
@@ -431,9 +431,11 @@ function poseMode(kind, duration) {
     nod: { sprite: 'idle', dur: 3.4 },
     shake: { sprite: 'idle', dur: 4.2 },
     mail: { sprite: 'idle', dur: 4.1 },
+    gift: { sprite: 'idle', dur: 5 },
+    birthday: { sprite: 'idle', dur: 5.5 },
   }[kind];
   // 有動畫片段就播片段，沒有（或還沒載好）退回舊的單張圖加程式動作
-  const clip = kind === 'curious' ? (Math.random() < 0.5 ? 'curious' : 'curious2') : POSE_CLIP[kind];
+  const clip = kind === 'curious' ? 'curious' : POSE_CLIP[kind]; // 東張西望只留 49 格正面版（祐 2026-11-12）
   const def = clip && clipDef(clip);
   let dur = duration || conf.dur;
   if (def && !duration) {
@@ -461,7 +463,7 @@ function poseMode(kind, duration) {
         view.rot = Math.sin(t * 2.2) * 0.018;
       }
       if (kind === 'curious') {
-        view.sprite = eyes(Math.floor(t / 1.2) % 2 ? 'curious2' : 'curious', t, 0.7);
+        view.sprite = eyes('curious', t, 0.7);
         view.rot = Math.sin(t * 1.6) * 0.02;
       }
       return t < dur;
@@ -471,8 +473,16 @@ function poseMode(kind, duration) {
 
 // 依時段打招呼：開機與喚醒時提屈膝禮（祐 2026-11-03），跨過時段（早／午／下午／晚／深夜）時揮手
 const periodOf = (h = new Date().getHours()) => (h >= 5 && h < 11 ? 'morning' : h < 14 && h >= 11 ? 'noon' : h >= 14 && h < 18 ? 'afternoon' : h >= 18 && h < 23 ? 'evening' : 'night');
+// 開機、喚醒的招呼：平常提屈膝禮；主人生日（控制面板設定）捧蛋糕；12 月 24、25 日送聖誕禮物（祐 2026-11-12）
+function greetClip(now = new Date()) {
+  const mmdd = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (S.settings && S.settings.birthdayOn && S.settings.birthday === mmdd && clipDef('birthday')) return 'birthday';
+  const xmas = now.getMonth() === 11 && (now.getDate() === 24 || now.getDate() === 25);
+  return xmas && clipDef('gift') ? 'gift' : 'curtsy';
+}
+
 function greetMode(period = periodOf(), clip = 'wave') {
-  const key = `greet_${period}`;
+  const key = clip === 'gift' || clip === 'birthday' ? clip : `greet_${period}`; // 送禮、生日就說祝福
   if (!clipDef(clip)) clip = 'wave';
   const dur = clipSeconds(clip) || 2.8; // 揮手新版、提屈膝禮都是整段播一次
   return {
@@ -669,8 +679,10 @@ function wakeMode(from) {
 // 腳步、身體起伏都是影片本身的，程式只負責移動；速度＝影片裡貼地那隻腳每格往後滑的距離（右 30px、左 37px）換算成身長／秒，腳才不會打滑。
 // moving：哪幾格（原圖編號）是在走路、要跟著移動；轉身那幾格原地不動
 const WALKS = {
-  R: { start: 'walkRstart', loop: 'walkR', stop: 'walkRstop', speed: 0.235, moving: [5, 24] },
-  L: { start: 'walkLstart', loop: 'walkL', stop: 'walkLstop', speed: 0.29, moving: [6, 23] },
+  // 49 格版（2026-11-12）：貼地那隻腳每格往後滑 右 28px、左 14.5px（原圖），×0.958 縮放、每格 0.082 秒 → 身長／秒
+  R: { start: 'walkRstart', loop: 'walkR', stop: 'walkRstop', speed: 0.498, moving: [8, 40] },
+  // stopAfter：循環裡播完這幾格（原圖編號）就可以接收尾；左走第 22 格之後接 41 跟原本接 23 一樣順，不用把整圈走完才停
+  L: { start: 'walkLstart', loop: 'walkL', stop: 'walkLstop', speed: 0.258, moving: [7, 43], stopAfter: [22, 40] },
 };
 // 片段在第 t 秒是原圖的第幾格（從檔名的編號讀）
 function clipFrameNo(name, t) {
@@ -710,10 +722,12 @@ function walkMode() {
       if (phase === 'loop') {
         if (!stopping && ((target - S.pos.x) * sgn < 2 || t > 30)) stopping = true;
         const def = clipDef(w.loop);
-        // 停下來：等循環播到最後一格、剛要接回第一格時，改接「轉回正面」，步伐才接得上
+        // 停下來：等循環播到可以接收尾的那格（預設最後一格）、剛要換下一格時，改接「轉回正面」，步伐才接得上
         if (stopping) {
           const i = clipCore.frameAt(def, t - t0).i;
-          if (i === def.frames.length - 1) seenEnd = true;
+          const no = parseInt(def.frames[i].match(/_(\d+)\./)[1], 10);
+          const ends = w.stopAfter || [parseInt(def.frames[def.frames.length - 1].match(/_(\d+)\./)[1], 10)];
+          if (ends.includes(no)) seenEnd = true;
           else if (seenEnd) { phase = 'stop'; t0 = t; }
         }
         if (phase === 'loop' && !playClip(w.loop, t - t0) && !waitingClip(w.loop)) return false;
@@ -1370,8 +1384,8 @@ function claudeState() {
 
 const INTERACTIONS = new Set(['drag', 'fall', 'pat', 'happy']);
 // 撫子回覆時可以叫、而且 Claude 工作中也會先演完的短動作（長的坐下、睡覺不算，免得卡住工作狀態）
-const EMOTE_SHORT = new Set(['yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'happy', 'shy', 'pray', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail']);
-const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze', 'standdoze', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail']);
+const EMOTE_SHORT = new Set(['yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'happy', 'shy', 'pray', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail', 'gift', 'birthday']);
+const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze', 'standdoze', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail', 'gift', 'birthday']);
 
 function chooseFree() {
   const s = S.settings;
@@ -1589,7 +1603,7 @@ async function start() {
   host.onSummon(() => {
     S.lastInteraction = performance.now();
     if (mode && mode.name === 'drag') return;
-    setMode(mode && mode.lying ? wakeMode(mode.wakeFrom || mode.body) : (onGround() ? greetMode(periodOf(), 'curtsy') : fallMode()));
+    setMode(mode && mode.lying ? wakeMode(mode.wakeFrom || mode.body) : (onGround() ? greetMode(periodOf(), greetClip()) : fallMode()));
   });
   // 保險：滑鼠停在她身上時，每秒重新宣告一次「接住滑鼠」，萬一狀態不同步也會自己修好
   setInterval(() => { if (S.hover && !S.ignoring && !drag.active) host.setIgnore(false); }, 1000);
@@ -1612,7 +1626,7 @@ async function start() {
   setMode(idleMode(2));
   // 開機招呼 + 跨時段招呼
   let lastPeriod = periodOf();
-  freeQueue = () => greetMode(periodOf(), 'curtsy');
+  freeQueue = () => greetMode(periodOf(), greetClip());
   setInterval(() => {
     const p = periodOf();
     if (p !== lastPeriod) { lastPeriod = p; if (!freeQueue) freeQueue = () => greetMode(p); }

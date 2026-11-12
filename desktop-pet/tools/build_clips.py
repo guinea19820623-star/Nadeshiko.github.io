@@ -69,7 +69,7 @@ CLIPS = [
     dict(no=75, src='站著發呆49', key='idle', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, loop=(1, 49), xfade=0.1),
     dict(no=23, src='坐下休息（日式跪坐）', name='跪坐', key='seiza', anchor='sit', loop=(1, 16), xfade=0.3, k=0.80, wired=False),
     # 擺姿勢（祐 2026-11-10）：16 是站姿、1 是眨眼比姿勢 → 16→1 擺出姿勢、1–12 來回、1→16 回站姿（回站姿從當下那格接著播）
-    dict(no=24, src='擺姿勢',     key='poseall',   anchor='stand', once=True, register=False, sprites={'pose': 8},
+    dict(no=24, src='擺姿勢',     key='poseall_16', wired=False, anchor='stand', once=True, register=False, sprites={'pose': 8},   # 舊版 16 格（2026-11-12 換成擺姿勢49）
          derive=[dict(key='posein', seq=(16, 1)),
                  dict(key='poseloop', seq=[(1, 12), (11, 2)], loop=True, xfade=0.1),
                  dict(key='poseout', seq=(1, 16))]),
@@ -86,9 +86,11 @@ CLIPS = [
     # 疲憊：揉眼睛（1–15）播一次，之後在睏倦站姿（16–25）循環；每 14 秒另外插一次打哈欠
     dict(no=30, src='有點累的站姿', key='tired',  anchor='stand', intro=(1, 15), loop=(16, 25), xfade=0.3, sprites={'tired': 20}),
     # 坐在視窗邊緣：屁股與撐著的手在原圖 y≈430，這條線貼著視窗邊緣
-    dict(no=31, src='坐在視窗邊緣', key='sit_edge', anchor='stand', seat=430, loop=(1, 25), xfade=0.3, sprites={'sit_edge': 1, 'sit_edge_b': 9}),
+    dict(no=31, src='坐在視窗邊緣', key='sit_edge', anchor='stand', seat=430, loop=(2, 19), xfade=0.1, sprites={'sit_edge': 1, 'sit_edge_b': 9}),
+    # 祐 2026-11-11：視窗邊緣兩段原本 1→25 單向循環、25 淡回 1，接縫正是腳位置差最大的地方（坐：腳差 13.2，一般相鄰 2～11）。
+    #   坐：腳 9 格擺一輪，改 2–19（兩輪，第 20 格≈第 2 格）；趴：改 9–22（第 23 格≈第 9 格，含 13–14 眨眼）。趴的腳本身每格就換位置（原圖 6 格/秒），要根治得重孵 49 格
     # 趴在視窗上緣：近景構圖，頭寬 285px → ×0.69；手肘與肚子在原圖 y≈612，放到畫布 630（垂下的頭髮才不會被畫布下緣裁掉）
-    dict(no=32, src='趴在視窗上緣', key='lie_top', anchor='seat', seat=612, seat_to=630, k=0.69, loop=(1, 25), xfade=0.3, sprites={'lie_top': 1, 'lie_top_b': 13}),
+    dict(no=32, src='趴在視窗上緣', key='lie_top', anchor='seat', seat=612, seat_to=630, k=0.69, loop=(9, 22), xfade=0.1, sprites={'lie_top': 1, 'lie_top_b': 13}),
     # 新緩降（側身張開雙手）：前 8 格身體被裁到，只用 9–16；影片裡她一路往下飄，逐格穩住在原地（stabilize）
     dict(no=33, src='緩降', name='緩降2', key='float', anchor='float', stabilize=True, range=(9, 16), loop=(9, 16), xfade=0.3, sprites={'float': 9}),
     # 落地：低處（13–25：著地、蹲下、站起）、高處（3–25：半空、摔在地上、爬起來、站好）
@@ -130,15 +132,23 @@ CLIPS = [
                  dict(key='fly3down', seq=(15, 25))]),
     # 走路（2026-11-03）：往右「自然走路」、往左「雙手互握優雅漫步」，各自轉身起步 → 走路循環 → 轉回正面
     # 側面走時腳底比正面站姿低幾 px，地面線取 684 折衷（站姿只浮 3px、走路腳尖只出畫布一點）
-    dict(no=42, src='向右走', key='walkRall', anchor='track', track=[(1, 1.175)], ground_src=684, once=True, register=False,
+    dict(no=42, src='向右走', key='walkRall_25', wired=False, anchor='track', track=[(1, 1.175)], ground_src=684, once=True, register=False,
          derive=[dict(key='walkRstart', seq=(1, 5)),                               # 正面 → 轉身 → 第一步
                  dict(key='walkR', seq=(6, 17), loop=True, xfade=0.15),            # 每 6 格一個完整步伐，第 18 格≈第 6 格
                  dict(key='walkRstop', seq=(24, 25))]),                            # 第 24 格≈第 18 格，接第 25 格轉回正面
-    dict(no=43, src='向左走2', key='walkLall', anchor='track', track=[(1, 1.175)], ground_src=684, once=True, register=False,
+    dict(no=43, src='向左走2', key='walkLall_25', wired=False, anchor='track', track=[(1, 1.175)], ground_src=684, once=True, register=False,
          derive=[dict(key='walkLstart', seq=(1, 5)),
                  dict(key='walkL', seq=(6, 20), loop=True, xfade=0.15),            # 第 21 格≈第 6 格
                  dict(key='walkLstop', seq=(21, 25))]),                            # 21–23 還在走、24–25 轉回正面
-    dict(no=38, src='東張西望2新版', key='curious2', anchor='track', track=[(1, 1.175)], ground_src=681, once=True, sprites={'curious2': 10}),
+    # 走路49（2026-11-12，取代上面兩段 25 格）：鏡頭不動，每格 0.082 秒。側面走時腳尖比站姿低到 713，地面線取 704 折衷（站姿只浮 2px）
+    #   向右：1–7 轉身、8–40 走、41–48 轉回正面；12 格一個完整步伐，第 35 格≈第 23 格 → 起步 1–22、循環 23–34、收尾 35–48
+    #   向左（祐標「些微瑕疵」：24–28 腿纏在一起、像三隻腳）：1–7 轉身、7–43 雙手互握漫步、43–48 轉回正面。避開 24–28：
+    #   起步 1–11、循環 12–22 接 30–40（第 30 格≈第 23 格、第 41 格≈第 12 格，兩個接縫跟一般相鄰格差不多）、收尾 41–48
+    dict(no=79, src='向右走49', key='walkRall', anchor='track', track=[(1, 1.095)], ground_src=704, once=True, register=False,
+         derive=[dict(key='walkRstart', seq=(1, 22)), dict(key='walkR', seq=(23, 34), loop=True, xfade=0.1), dict(key='walkRstop', seq=(35, 48))]),
+    dict(no=80, src='向左走49些微瑕疵', key='walkLall', anchor='track', track=[(1, 1.095)], ground_src=704, once=True, register=False,
+         derive=[dict(key='walkLstart', seq=(1, 11)), dict(key='walkL', seq=[(12, 22), (30, 40)], loop=True, xfade=0.1), dict(key='walkLstop', seq=(41, 48))]),
+    dict(no=38, src='東張西望2新版', key='curious2', anchor='track', track=[(1, 1.175)], ground_src=681, once=True, sprites={'curious2': 10}, wired=False),   # 祐 2026-11-12：只留 49 格正面版（側身版大動作容易孵出背後的大蝴蝶結）
     # 坐下＋起身（2026-11-03）：首幀是站著發呆，一段影片做完「坐下 → 坐著 → 站回原位」。鏡頭不動，站姿身高 638px（×1.095 對齊站著發呆），腳底在原圖 y=702
     # 坐著時裙擺鋪在腳前面，比腳底低十幾 px，出畫布的幾 px 剛好在地面線下，看不到
     # 坐著的循環都用來回播：頭會慢慢偏，單向接回去會跳
@@ -280,6 +290,19 @@ CLIPS = [
                  dict(key='patup', seq=(14, 46))]),
     # 害羞49（2026-11-10）：3–8 微側身雙手捧臉、8–33 閉眼捧臉左右扭、中間偷看一眼、34–45 放下手轉回正面；46 之後靜止
     dict(no=78, src='害羞49', key='shy', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, range=(1, 46)),
+    # 擺姿勢49（2026-11-12）：1–11 擺出單手托腮眨眼、12–30 維持（17–28 最穩）、31–37 放下手；38 之後靜止
+    dict(no=81, src='擺姿勢49', key='poseall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False, sprites={'pose': 20},
+         derive=[dict(key='posein', seq=(1, 17)),
+                 dict(key='poseloop', seq=[(17, 28), (27, 18)], loop=True, xfade=0.1),
+                 dict(key='poseout', seq=(17, 41))]),
+    # 聖誕節：送你禮物49（2026-11-12）：1–10 雙手繞到背後、11–15 拿出紅禮物盒、16–27 捧著（18–27 閉眼笑）、28–33 化成光點消散、34–39 回站姿；40 之後靜止
+    #   捧著那段只有 1 秒，多來回一次拉長；18–19 盒子還在移動，所以只在 20–27 來回（祐 2026-11-12）
+    dict(no=82, src='聖誕節：送你禮物49', key='giftall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='gift', seq=[(1, 27), (26, 20), (21, 27), (28, 40)])]),
+    # 生日快樂49（2026-11-12）：1–4 雙手到背後、金光；5 蛋糕突然冒出又消失（祐：不用）；6–10 從金光裡拿出蛋糕；11–29 捧著點蠟燭的蛋糕左右搖；
+    #   30 化成光點、31–40 雙手合十、41–45 放下手；46 之後靜止。第 27 格≈第 16 格，16–26 多搖兩輪拉長捧蛋糕的時間
+    dict(no=83, src='生日快樂49', key='bdayall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
+         derive=[dict(key='birthday', seq=[(1, 4), (6, 26), (16, 26), (16, 46)])]),
     # 收信（2026-11-10，49 格，鏡頭不動）：信封飄下 → 接住拆封 → 讀信 → 信淡出 → 回站姿；40 之後靜止
     dict(no=69, src='收信49', key='mail', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, range=(1, 40)),
     dict(no=68, src='搖頭困惑、不認同49', key='shake', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, range=(5, 46)),   # 1–5 還沒動、46 之後靜止
