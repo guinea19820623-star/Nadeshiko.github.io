@@ -132,6 +132,70 @@ function createPet() {
   pet.on('closed', () => { pet = null; app.quit(); });
 }
 
+// 放天燈（祐 2026-11-12）：從撫子手上飄走的天燈是獨立的透明小視窗，滑鼠穿透。
+// 火焰會動（lantern.html 播 13 格火光），往上飄（越飄越快一點、左右輕晃），天燈頂端飄到螢幕上方 18% 時化成金色光點消散。
+// 兩段式：動作一開始先把視窗開好藏著（go:false），影片第 26 格才顯示、開始飄（go:true），跟影片裡的天燈重疊接上，不會慢半拍。
+// 視窗是天燈的 2.2 倍寬、2 倍高（左右各留 0.6、上方 0.7、下方 0.3），給光暈和往上飄的光點空間。
+let lanternPending = null;
+function lanternWindow(o) {
+  const W = Math.max(16, Math.round(o.w * 2.2)), H = Math.max(16, Math.round(o.h * 2.0));
+  const win = new BrowserWindow({
+    x: Math.round(o.x - o.w * 0.6), y: Math.round(o.y - o.h * 0.7), width: W, height: H,
+    transparent: true, frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
+    fullscreenable: false, skipTaskbar: true, hasShadow: false, focusable: false, show: false,
+    backgroundColor: '#00000000',
+    webPreferences: { contextIsolation: true, nodeIntegration: false, backgroundThrottling: false },
+  });
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.setIgnoreMouseEvents(true);
+  win.loadFile(path.join(__dirname, 'renderer', 'lantern.html'));
+  return { win, W, H };
+}
+
+function flyLantern({ win, W, H }, o) {
+  const ox = o.x - o.w * 0.6;
+  let y = o.y - o.h * 0.7;
+  win.setBounds({ x: Math.round(ox), y: Math.round(y), width: W, height: H });
+  win.showInactive();
+  const disp = screen.getDisplayNearestPoint({ x: Math.round(o.x + o.w / 2), y: Math.round(o.y + o.h / 2) }).bounds;
+  const fadeLine = disp.y + disp.height * 0.18;
+  const v0 = Math.max(30, Number(o.speed) || 80);
+  let t = 0, fadeT = -1;
+  const timer = setInterval(() => {
+    if (win.isDestroyed()) { clearInterval(timer); return; }
+    t += 1 / 60;
+    const slow = fadeT < 0 ? 1 : Math.max(0.3, 1 - (t - fadeT) * 0.5); // 開始消散後慢下來
+    y -= v0 * (1 + Math.min(t, 6) * 0.08) * slow / 60;
+    const x = ox + Math.sin(t * 1.4) * o.w * 0.08 * Math.min(1, t / 0.6); // 剛離手時不晃，慢慢晃起來
+    win.setBounds({ x: Math.round(x), y: Math.round(y), width: W, height: H });
+    if (fadeT < 0 && (y + o.h * 0.7 < fadeLine || t > 30)) {
+      fadeT = t;
+      win.webContents.executeJavaScript('window.dissolve && window.dissolve()').catch(() => {});
+    }
+    if ((fadeT >= 0 && t - fadeT > 2.6) || t > 45) { clearInterval(timer); win.destroy(); }
+  }, 1000 / 60);
+}
+
+function launchLantern(o) {
+  if (!o || !Number.isFinite(o.x) || !Number.isFinite(o.y) || !(o.w > 0) || !(o.h > 0)) return;
+  if (!o.go) {
+    if (lanternPending && !lanternPending.win.isDestroyed()) lanternPending.win.destroy();
+    const lw = lanternWindow(o);
+    lanternPending = lw;
+    setTimeout(() => { // 沒等到第 26 格（動作被打斷）就收掉
+      if (lanternPending === lw) { lanternPending = null; if (!lw.win.isDestroyed()) lw.win.destroy(); }
+    }, 15000);
+    return;
+  }
+  if (lanternPending && !lanternPending.win.isDestroyed()) {
+    const lw = lanternPending; lanternPending = null;
+    flyLantern(lw, o);
+    return;
+  }
+  const lw = lanternWindow(o); // 沒有先開好（例如 act.js 直接叫到一半）：現開，載好就飛
+  lw.win.once('ready-to-show', () => { if (!lw.win.isDestroyed()) flyLantern(lw, o); });
+}
+
 function send(channel, payload) {
   if (pet && !pet.isDestroyed()) pet.webContents.send(channel, payload);
 }
@@ -501,7 +565,7 @@ const ACTIONS = [
   ['sit', '坐下休息'], ['perch', '坐到視窗邊緣'], ['shy', '害羞'], ['wake', '睡醒爬起來'],
   ['pray', '禱告'], ['doze', '坐著打盹'], ['standdoze', '站著打瞌睡'], ['curtsy', '提屈膝禮'],
   ['pirouette', '芭蕾：旋轉'], ['arabesque', '芭蕾：阿拉貝斯克'],
-  ['pose', '擺姿勢'], ['nod', '點頭贊同'], ['shake', '搖頭困惑'], ['mail', '收信'], ['gift', '聖誕禮物'], ['birthday', '生日快樂'],
+  ['pose', '擺姿勢'], ['nod', '點頭贊同'], ['shake', '搖頭困惑'], ['mail', '收信'], ['gift', '聖誕禮物'], ['birthday', '生日快樂'], ['lantern', '放天燈'], ['sparkler', '仙女棒'],
 ];
 
 // 歌曲與樂曲：檔名（去掉副檔名）就是曲名；只在使用者自己點曲子時才演出
@@ -627,6 +691,7 @@ function setupIPC() {
     return { bounds: b, workArea: displayFor(b).workArea, cursor: screen.getCursorScreenPoint() };
   });
 
+  ipcMain.on('pet:lantern', (_e, o) => launchLantern(o));
   ipcMain.on('pet:move', (_e, x, y) => {
     if (!pet) return;
     placePet(x, y);

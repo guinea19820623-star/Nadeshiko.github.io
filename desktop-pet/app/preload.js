@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('petHost', {
   onRecover: on('pet:recover'),
   onSummon: on('pet:summon'),
   onVoice: on('pet:voice'),
+  lantern: (o) => ipcRenderer.send('pet:lantern', o),
 });
 
 contextBridge.exposeInMainWorld('panelHost', {

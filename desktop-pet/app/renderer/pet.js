@@ -21,7 +21,7 @@ const ACTION_LINES = {
   yawn: '呼啊～', stretch: '嗯～～', wave: '嗨～', cheer: '好耶～', nap: 'Zzz…',
   curious: '嗯？', pose: '♪', happy: '嘿嘿♪', pat: '再摸一下嘛…', drag: '哇！放我下來～', dizzy: '暈…',
   pray: '願一切順利～', doze: 'Zzz…', curtsy: '日安～', pirouette: '轉一圈～', arabesque: '♪～',
-  nod: '嗯嗯！', shake: '唔…不對吧？', mail: '有信來囉～', gift: '聖誕快樂～', birthday: '生日快樂～',
+  nod: '嗯嗯！', shake: '唔…不對吧？', mail: '有信來囉～', gift: '聖誕快樂～', birthday: '生日快樂～', lantern: '願望會實現的～', sparkler: '好漂亮～',
 };
 
 const S = {
@@ -297,6 +297,7 @@ function draw() {
     ctx.drawImage(nb, S.padX, S.bubbleH, S.size, S.size);
     ctx.globalAlpha = 1;
   }
+  drawSparks();
 }
 
 // 目前畫出來的頭頂在哪（視窗內座標），泡泡跟著它
@@ -411,7 +412,7 @@ function idleMode(duration = rand(5, 12), sprite = 'idle') {
 
 // 動作 → 動畫片段（manifest.clips）。東張西望有正面與側身兩種，在 poseMode 裡隨機挑
 // 歡呼：Claude 完成時用循環版 cheer，自己歡呼整段播一次 cheerall（最後放下手回站姿）
-const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheerall', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy', curtsy: 'curtsy', pirouette: 'pirouette', arabesque: 'arabesque', nod: 'nod', shake: 'shake', mail: 'mail', gift: 'gift', birthday: 'birthday' };
+const POSE_CLIP = { yawn: 'yawn', stretch: 'stretch', wave: 'wave', cheer: 'cheerall', nap: 'sleep', pose: 'pose', shy: 'shy', happy: 'happy', curtsy: 'curtsy', pirouette: 'pirouette', arabesque: 'arabesque', nod: 'nod', shake: 'shake', mail: 'mail', gift: 'gift', birthday: 'birthday', lantern: 'lantern', sparkler: 'sparkler' };
 
 // 定點姿勢（打哈欠、伸懶腰、揮手…）
 function poseMode(kind, duration) {
@@ -433,6 +434,8 @@ function poseMode(kind, duration) {
     mail: { sprite: 'idle', dur: 4.1 },
     gift: { sprite: 'idle', dur: 5 },
     birthday: { sprite: 'idle', dur: 5.5 },
+    lantern: { sprite: 'idle', dur: 4 },
+    sparkler: { sprite: 'idle', dur: 4.7 },
   }[kind];
   // 有動畫片段就播片段，沒有（或還沒載好）退回舊的單張圖加程式動作
   const clip = kind === 'curious' ? 'curious' : POSE_CLIP[kind]; // 東張西望只留 49 格正面版（祐 2026-11-12）
@@ -442,10 +445,22 @@ function poseMode(kind, duration) {
     if (def.mode === 'once') dur = clipSeconds(clip);                          // 打哈欠、伸懶腰、東張西望：播完就結束
     else if (Number.isFinite(dur)) dur = Math.max(dur, clipSeconds(clip) + clipCore.loopLength(def)); // 揮手、歡呼：至少一輪
   }
+  let lanternSent = false;
   return {
     name: kind,
-    enter() { say(kind, 1800, { mute: kind === 'curious' }); if (def) ensureClip(clip); },
+    enter() {
+      say(kind, 1800, { mute: kind === 'curious' });
+      if (def) ensureClip(clip);
+      if (kind === 'lantern') host.lantern(lanternRect(false)); // 先在背景把天燈小視窗開好，第 26 格時才不會慢半拍
+    },
     update(dt, t) {
+      // 放天燈：播到第 26 格那一刻，獨立的天燈跟影片裡的天燈重疊出現，接著一路往上飄（影片第 28 格起天燈已擦掉）
+      if (kind === 'lantern' && !lanternSent && def && clipRes[clip] && clipRes[clip].state === 'ready' && clipFrameNo(clip, t) >= 26) {
+        lanternSent = true;
+        host.lantern(lanternRect(true));
+      }
+      // 仙女棒：影片裡只有棒子，火花照每格棒子尖端的位置補畫（第 12–31 格，30 起慢慢燒完）
+      if (kind === 'sparkler' && def && clipRes[clip] && clipRes[clip].state === 'ready') emitSparks(dt, clipFrameNo(clip, t));
       // 片段本身就是動畫，不再疊程式的呼吸、搖晃與跳動
       if (def && playClip(clip, t, { base: 'idle', fadeIn: 0.2, fadeOut: 0.3, dur: Number.isFinite(dur) ? dur : undefined })) return t < dur;
       if (def && waitingClip(clip) && t < 1.5) return true; // 載入中沿用前一格，不閃舊圖
@@ -830,15 +845,82 @@ function flyMode() {
       flyView(kind, t - t0, !up); // 從起飛片段接過來的不用再從站姿淡入
       if (Math.abs(vx) > 8) view.flip = vx < 0;
       view.rot = clamp(vy / speed, -1, 1) * 0.08 * (view.flip ? -1 : 1);
-      view.dy = Math.sin(t * 2.4) * S.size * 0.015;
+      view.dy = kind === 'fly4' ? 0 : Math.sin(t * 2.4) * S.size * 0.015; // 飛行49 影片本身就在上下飄
       return t < 40;
     },
     exit() { view.flip = false; },
   };
 }
 
-// 飛行姿勢兩種，都是新動畫：fly3（「飛行+落地」）、fly2（「優雅起飛+落地」），各有起飛／落地片段。舊的 53、54 系列已移除。
-function pickFly() { const k = ['fly2', 'fly3'].filter(clipDef); return k.length ? k[Math.floor(Math.random() * k.length)] : 'fly2'; }
+// 飛行：飛行49（祐 2026-11-12，小仙子式，取代兩種舊飛行 fly2、fly3），起飛 fly4up → 飛 fly4 → 落地 fly4down
+function pickFly() { return clipDef('fly4') ? 'fly4' : ['fly2', 'fly3'].find(clipDef) || 'fly2'; }
+
+// 仙女棒火花（祐 2026-11-12）：仙女棒49 的棒子尖端（原圖座標，逐格量的），換成視窗座標噴金色火花，畫在 draw() 的最上層
+const SPARK_TIPS = {
+  12: [575, 550], 13: [578, 482], 14: [565, 460], 15: [557, 445], 16: [558, 445], 17: [580, 456], 18: [583, 462],
+  19: [568, 450], 20: [535, 442], 21: [552, 452], 22: [542, 522], 23: [540, 545], 24: [560, 510], 25: [585, 458],
+  26: [538, 400], 27: [518, 407], 28: [512, 408], 29: [517, 408], 30: [583, 412], 31: [598, 480],
+};
+const SPARK_S = 614 / 701.5 * 1.1196, SPARK_DX = 14; // 跟 build_clips.py #88 的縮放、蹲著時往右挪的 14px 一致
+const sparks = [];
+let sparkGlow = null;
+function emitSparks(dt, no) {
+  const p = SPARK_TIPS[no];
+  if (!p) return;
+  const k = S.size / S.manifest.canvas;
+  const x = S.padX + (332 + SPARK_DX + (p[0] - 384) * SPARK_S) * k + view.dx;
+  const y = S.bubbleH + (648 - (694 - p[1]) * SPARK_S) * k + view.dy;
+  const burnout = no >= 30 ? 0.35 : 1;
+  sparkGlow = { x, y, a: burnout, at: performance.now() };
+  let n = 170 * burnout * dt + Math.random();
+  while (n-- >= 1) {
+    const ang = Math.random() * Math.PI * 2, sp = (60 + Math.random() * 170) * k;
+    sparks.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 20 * k, life: 0.18 + Math.random() * 0.35, age: 0, k });
+  }
+}
+function updateSparks(dt) {
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i];
+    s.age += dt;
+    if (s.age > s.life) { sparks.splice(i, 1); continue; }
+    s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 260 * s.k * dt; s.vx *= 0.96; s.vy *= 0.96;
+  }
+}
+function drawSparks() {
+  const glowOn = sparkGlow && performance.now() - sparkGlow.at < 150;
+  if (!sparks.length && !glowOn) return;
+  ctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+  ctx.globalCompositeOperation = 'lighter';
+  if (glowOn) {
+    const r = S.size * 0.09;
+    const g = ctx.createRadialGradient(sparkGlow.x, sparkGlow.y, 0, sparkGlow.x, sparkGlow.y, r);
+    g.addColorStop(0, `rgba(255,250,220,${0.9 * sparkGlow.a})`);
+    g.addColorStop(0.4, `rgba(255,200,110,${0.45 * sparkGlow.a})`);
+    g.addColorStop(1, 'rgba(255,160,60,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sparkGlow.x, sparkGlow.y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.lineCap = 'round';
+  for (const s of sparks) {
+    const a = 1 - s.age / s.life;
+    ctx.strokeStyle = `rgba(255,${200 + Math.round(55 * a)},${120 + Math.round(100 * a)},${a})`;
+    ctx.lineWidth = Math.max(1, 2.2 * s.k * 2.2);
+    ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - s.vx * 0.05, s.y - s.vy * 0.05); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// 放天燈：天燈在第 26 格時的畫布位置（660×660，tools/patches/make_lantern49.py 算出來的），換成螢幕座標交給主程序的小視窗
+const LANTERN_AT = { x: 318.3, y: -11.5, w: 116, h: 143 };
+function lanternRect(go) {
+  const k = S.size / S.manifest.canvas;
+  return { // 天燈本身在螢幕上的位置與大小；光暈、光點要的邊界由主程序加。go＝false 先開好藏著，true 才顯示並開始飄
+    go,
+    x: S.pos.x + S.padX + LANTERN_AT.x * k + view.dx,
+    y: S.pos.y + S.bubbleH + LANTERN_AT.y * k + view.dy,
+    w: LANTERN_AT.w * k, h: LANTERN_AT.h * k,
+    speed: 213 * k, // 影片裡天燈 26→28 每格往上約 17.5 原圖像素（×0.98、每格 0.082 秒），接著用同樣的速度飄
+  };
+}
 function flyView(kind, t, fade = true) {
   if (clipDef(kind) && playClip(kind, t, fade ? { base: 'idle', fadeIn: 0.2 } : undefined)) return;
   if (waitingClip(kind)) return; // 載入中沿用前一格
@@ -1124,13 +1206,13 @@ function claudeMode(body) {
   return {
     name: `claude:${body}`,
     body,
-    rise: seq ? seq.rise : undefined,
+    rise: seq ? seq.rise : body === 'tired' && clipDef('tiredup') ? 'tiredup' : undefined, // 疲憊結束：從當下那格打起精神站好
     wakeFrom: body === 'faint' ? 'faint2' : body,
     lying: body === 'exhausted' || body === 'faint',
     enter() {
       if (seq) { ensureClip(seq.down); ensureClip(seq.loop); ensureClip(seq.rise); }
       if (clip) ensureClip(clip);
-      if (body === 'tired') { ensureClip('tired'); ensureClip('yawn'); }
+      if (body === 'tired') { ensureClip('tireddown'); ensureClip('tiredloop'); ensureClip('tiredup'); ensureClip('yawn'); }
       if (body === 'faint') { ensureClip('faint2down'); ensureClip('faint2'); }
       if (body === 'exhausted') { ensureClip('blanketdown'); ensureClip('blanket'); }
     },
@@ -1176,8 +1258,8 @@ function claudeMode(body) {
           // 偶爾打個哈欠（新版哈欠片段約 5 秒，從第 9 秒開始播，剛好接在 14 秒循環結束前）
           const cyc = t % 14;
           if (cyc > 9 && playClip('yawn', cyc - 9, { base: 'tired', fadeIn: 0.25, fadeOut: 0.3, dur: 5 })) break;
-          // 新的疲憊站姿片段：先揉一次眼睛，之後在睏倦站姿循環
-          if (playClip('tired', t)) break;
+          // 疲憊49：肩膀垂下、眼皮變重 → 揉眼搖晃來回；沒有 49 格版才用舊的 25 格
+          if (clipDef('tiredloop') ? lieView('tireddown', 'tiredloop', t, 0) : playClip('tired', t)) break;
           view.blend = null; // 剛打完哈欠的淡出殘留要清掉
           view.sprite = cyc > 9.5 ? 'yawn' : eyes('tired', t, 0.9);
           breathe(t, 0.012, 4.6);
@@ -1384,8 +1466,8 @@ function claudeState() {
 
 const INTERACTIONS = new Set(['drag', 'fall', 'pat', 'happy']);
 // 撫子回覆時可以叫、而且 Claude 工作中也會先演完的短動作（長的坐下、睡覺不算，免得卡住工作狀態）
-const EMOTE_SHORT = new Set(['yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'happy', 'shy', 'pray', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail', 'gift', 'birthday']);
-const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze', 'standdoze', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail', 'gift', 'birthday']);
+const EMOTE_SHORT = new Set(['yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'happy', 'shy', 'pray', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail', 'gift', 'birthday', 'lantern', 'sparkler']);
+const FREE = new Set(['idle', 'walk', 'fly', 'yawn', 'stretch', 'wave', 'cheer', 'curious', 'pose', 'nap', 'sit', 'perch', 'shy', 'greet', 'pray', 'doze', 'standdoze', 'curtsy', 'pirouette', 'arabesque', 'nod', 'shake', 'mail', 'gift', 'birthday', 'lantern', 'sparkler']);
 
 function chooseFree() {
   const s = S.settings;
@@ -1449,6 +1531,7 @@ function tick(dt) {
   lastBody = r.body;
 
   modeT += dt;
+  updateSparks(dt);
   const alive = mode ? mode.update(dt, modeT) : false;
   if (!alive) {
     if (mode && mode.name === 'nap') S.lastInteraction = performance.now();

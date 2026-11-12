@@ -84,7 +84,7 @@ CLIPS = [
     # 2026-11-03 第三批：取代舊 28 開心、23 疲憊、76／80 坐在視窗邊緣、83 趴在視窗上緣、78 緩降，並新增兩種落地
     dict(no=29, src='點一下開心跳', key='happy_old', anchor='stand', once=True, wired=False),
     # 疲憊：揉眼睛（1–15）播一次，之後在睏倦站姿（16–25）循環；每 14 秒另外插一次打哈欠
-    dict(no=30, src='有點累的站姿', key='tired',  anchor='stand', intro=(1, 15), loop=(16, 25), xfade=0.3, sprites={'tired': 20}),
+    dict(no=30, src='有點累的站姿', key='tired_25', wired=False, anchor='stand', intro=(1, 15), loop=(16, 25), xfade=0.3, sprites={'tired': 20}),
     # 坐在視窗邊緣：屁股與撐著的手在原圖 y≈430，這條線貼著視窗邊緣
     dict(no=31, src='坐在視窗邊緣', key='sit_edge', anchor='stand', seat=430, loop=(2, 19), xfade=0.1, sprites={'sit_edge': 1, 'sit_edge_b': 9}),
     # 祐 2026-11-11：視窗邊緣兩段原本 1→25 單向循環、25 淡回 1，接縫正是腳位置差最大的地方（坐：腳差 13.2，一般相鄰 2～11）。
@@ -113,19 +113,21 @@ CLIPS = [
                  dict(key='nap2down', seq=(25, 1), speed=1.5)]),                  # 倒著播（稍快）＝躺下睡覺
     # 東張西望2 新版：正面 → 轉側身張望 → 轉回正面。鏡頭比站姿遠（身高 596px），腳底固定在原圖 y=681
     # 蓋棉被睡+起床：第 1 格是站姿參考圖、2–13 閉眼睡、14 起睜眼掀被站起。躺著時鏡頭近（×0.98）、站起來遠（×1.175）
-    dict(no=39, src='蓋棉被睡+起床', name='蓋棉被', key='blanketall', anchor='track', track=[(17, 0.98), (23, 1.175)], once=True, register=False,
+    dict(no=39, src='蓋棉被睡+起床', name='蓋棉被', key='blanketall_25', wired=False, anchor='track', track=[(17, 0.98), (23, 1.175)], once=True, register=False,
          # 蓋棉被睡：2–8 一次呼吸（8≈2）；11–13 被子鼓高 26–38px，接回 2 會疊出兩層被子，不用。head_src 把氣泡固定在頭上（Z 字和被子不算頭）
          derive=[dict(key='blanket', seq=(2, 8), loop=True, xfade=0.2, head_src=(120, 421)),
                  dict(key='blanketup', seq=(14, 25)),                              # 睜眼、掀被、站好
                  dict(key='blanketdown', seq=(25, 14), speed=1.5)]),               # 倒著播＝鑽進棉被躺下
     # 優雅起飛+落地：1–9 起飛（蹲低、起跳、升空）、10–12 水平滑翔來回播、13–25 直立緩降、站好。鏡頭不動，腳底在原圖 y=681
-    dict(no=40, src='優雅起飛+落地', key='fly2all', anchor='track', track=[(1, 1.175)], ground_src=681, top_min=4, once=True, register=False,
+    dict(no=40, src='優雅起飛+落地', key='fly2all', wired=False, anchor='track',   # 2026-11-12 換成飛行49
+    track=[(1, 1.175)], ground_src=681, top_min=4, once=True, register=False,
          # 滑翔只用頭最穩的 10–12 來回播（祐查到第 9→10 格頭掉 24px，13 又再掉 14px）；9 歸起飛、13 起歸落地
          derive=[dict(key='fly2up', seq=(1, 9)),
                  dict(key='fly2', seq=[(10, 12), (11, 11)], loop=True, xfade=0.1),
                  dict(key='fly2down', seq=(13, 25))]),
     # 飛行+落地：1–5 起飛、6–14 平飛循環、15–25 落地站好。平飛時手腳張很開（寬 700px），站姿 ×1.175、平飛縮到 ×1.06 才放得進畫布
-    dict(no=41, src='飛行+落地', key='fly3all', anchor='track', track=[(3, 1.175), (6, 1.06), (14, 1.06), (17, 1.175)], ground_src=681, top_min=4,
+    dict(no=41, src='飛行+落地', key='fly3all', wired=False, anchor='track',   # 2026-11-12 換成飛行49
+    track=[(3, 1.175), (6, 1.06), (14, 1.06), (17, 1.175)], ground_src=681, top_min=4,
          once=True, register=False,
          derive=[dict(key='fly3up', seq=(1, 5)),
                  dict(key='fly3', seq=[(6, 14), (13, 7)], loop=True, xfade=0.15),    # 來回播：頭一路往前飄 38px，單向循環接縫會跳
@@ -303,6 +305,36 @@ CLIPS = [
     #   30 化成光點、31–40 雙手合十、41–45 放下手；46 之後靜止。第 27 格≈第 16 格，16–26 多搖兩輪拉長捧蛋糕的時間
     dict(no=83, src='生日快樂49', key='bdayall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False,
          derive=[dict(key='birthday', seq=[(1, 4), (6, 26), (16, 26), (16, 46)])]),
+    # 5 小時額度用完49（2026-11-12，祐標「些微瑕疵」：9–11 枕頭突然消失）：用第 8 格的枕頭（右端被裙襬擋住，拿左半邊鏡像補齊）墊回 9–11
+    #   躺著時棉被加枕頭幾乎佔滿原圖寬度，×1.095 會出畫布 → 跟舊版一樣躺著縮到 ×0.98，縮放只放在動作大的 1→3（棉被出現、跪下）與 38→46（掀被起身）
+    #   1 站著、2–8 棉被枕頭出現、跪坐揉眼、9–13 躺下拉被、14–36 睡著（第 36 格≈第 16 格）、37–45 醒來坐起掀被站起、46 之後站好
+    dict(no=84, src='5 小時額度用完（蓋棉被睡覺）49些微瑕疵', key='blanketall', anchor='track', track=[(1, 1.095), (3, 0.98), (38, 0.98), (46, 1.095)], ground_src=702, match=1, once=True, register=False,
+         underlay=('patches/blanket49_pillow.png', [9, 10, 11]),
+         # 祐 2026-11-12：整段放慢 30%（speed 0.7）
+         derive=[dict(key='blanketdown', seq=(1, 15), speed=0.7),
+                 dict(key='blanket', seq=(16, 35), loop=True, xfade=0.15, head_src=(150, 448), speed=0.7),
+                 dict(key='blanketup', seq=(36, 48), speed=0.7)]),
+    # 85% 疲憊49（2026-11-12）：4–12 肩膀垂下、眼皮變重；12–33 揉眼、搖搖晃晃（來回）；34–44 打起精神站好
+    dict(no=85, src='85% 疲憊（有點累）49', key='tiredall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False, sprites={'tired': 20},
+         derive=[dict(key='tireddown', seq=(1, 12)),
+                 dict(key='tiredloop', seq=[(12, 33), (32, 13)], loop=True, xfade=0.15),
+                 dict(key='tiredup', seq=(12, 45))]),
+    # 飛行49（2026-11-12，取代兩種舊飛行）：小仙子式，身體微前傾、膝蓋彎起、雙手往兩側張開，寬度跟站著差不多，不用縮小。
+    #   這段和天燈49 的首幀比其他 49 格小 2%（身高 623 對 637、腳底 694），track ×1.1196、地面線 694 補回來
+    #   1–5 蹲低、6–7 起跳、8–33 飛（第 23 格≈第 15 格）、34–38 降落、39–48 站好 → 起飛 1–14、循環 15–22、落地 23–48（先飛完一段再降落）
+    dict(no=87, src='飛行49', key='fly4all', anchor='track', track=[(1, 1.1196)], ground_src=694, match=1, once=True, register=False,
+         derive=[dict(key='fly4up', seq=(1, 14)),
+                 dict(key='fly4', seq=(15, 22), loop=True, xfade=0.1),
+                 dict(key='fly4down', seq=(23, 48))]),
+    # 天燈49（2026-11-12）：2 天燈出現、2–22 捧著許願、23–27 往上推、28 起天燈飛出畫面上緣、29–45 抬頭看、回站姿。
+    #   第 28 格換成擦掉天燈的版本（tools/patches/make_lantern49.py 產生），天燈改成獨立漂浮物（app/sprites/lantern.png）從那裡飄出螢幕
+    dict(no=86, src='天燈49', key='lanternall', anchor='track', track=[(1, 1.1196)], ground_src=694, match=1, once=True, register=False,
+         replace={28: 'patches/lantern49_f28.png'},
+         derive=[dict(key='lantern', seq=(1, 46))]),
+    # 仙女棒49（2026-11-12）：3–8 微側身撥裙、9–11 蹲下、12–31 拿著仙女棒揮（影片裡沒有火花，火花由 pet.js 照棒子尖端補畫）、32–37 放下、38–45 站起回正面。
+    #   首幀比其他 49 格小 2%（同飛行49）；蹲著時裙襬會超出畫布左緣 9px，9–37 整體往右挪 14px（pet.js 的 SPARK_DX 一起算）
+    dict(no=88, src='仙女棒49', key='sparkler', anchor='track', track=[(1, 1.1196, 0), (9, 1.1196, 14), (37, 1.1196, 14), (44, 1.1196, 0)],
+         ground_src=694, match=1, once=True, range=(1, 46)),
     # 收信（2026-11-10，49 格，鏡頭不動）：信封飄下 → 接住拆封 → 讀信 → 信淡出 → 回站姿；40 之後靜止
     dict(no=69, src='收信49', key='mail', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, range=(1, 40)),
     dict(no=68, src='搖頭困惑、不認同49', key='shake', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, range=(5, 46)),   # 1–5 還沒動、46 之後靜止
@@ -390,6 +422,15 @@ def main():
         label = c['src']
         frames, durs = load_frames(os.path.join(args.src, label))
         n = len(frames)
+        # underlay：(圖檔, [格序…])，把修補圖墊在那幾格底下（原圖座標 768×768）。影片裡東西突然消失時，從前後格補回來
+        if c.get('underlay'):
+            ufile, ufr = c['underlay']
+            layer = Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ufile)).convert('RGBA')
+            for fi in ufr:
+                patched = layer.copy(); patched.alpha_composite(frames[fi - 1]); frames[fi - 1] = patched
+        # replace：{格序: 圖檔}，整格換成修補好的圖（原圖座標 768×768）
+        for fi, rfile in c.get('replace', {}).items():
+            frames[fi - 1] = Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), rfile)).convert('RGBA')
         tag = f"{c['no']:02d}_{c.get('name', label)}"
         # ① 切格原圖：768 原尺寸、編號，給祐之後做首尾幀用
         if args.raw:

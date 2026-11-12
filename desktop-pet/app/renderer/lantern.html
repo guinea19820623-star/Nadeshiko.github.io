@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- 放天燈：從撫子手上飄走的天燈（祐 2026-11-12）。獨立的透明小視窗，主程序負責往上移動。
+     火焰：lantern_anim.png 是 13 格火光（影片第 9–21 格的火嵌進第 26 格的外殼），來回播。
+     飄到螢幕上方時主程序呼叫 dissolve()：天燈淡掉、化成往上飄的金色光點。
+     版面：視窗是天燈的 2.2 倍寬、2 倍高，天燈畫在左右各留 0.6、上方留 0.7 的位置，四周留給光暈和光點。 -->
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const FRAMES = 13, FRAME_S = 0.1;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const img = new Image();
+img.src = '../sprites/lantern_anim.png';
+let dpr = 1, W = 0, H = 0;
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const box = () => { const lw = W / 2.2, lh = H / 2.0; return { x: lw * 0.6, y: lh * 0.7, w: lw, h: lh }; };
+let t0 = performance.now(), fadeAt = -1;
+const sparks = [];
+
+// 天燈化成光點：從天燈目前那一格取亮的像素當光點，往上飄、慢慢變暗
+window.dissolve = function () {
+  if (fadeAt >= 0) return;
+  fadeAt = performance.now();
+  // 光點撒在天燈的形狀裡（上寬下窄），越下面越亮黃（火焰）、上面偏橘；file:// 的圖不能讀像素，所以不取樣、直接照形狀撒
+  const b = box();
+  const PAL = ['255,236,170', '255,214,120', '255,180,80', '255,150,60', '255,250,220'];
+  for (let n = 0; n < 170; n++) {
+    const v = Math.random();                       // 0＝頂、1＝底
+    const half = b.w * (0.47 - 0.05 * v);
+    const x = b.x + b.w / 2 + (Math.random() * 2 - 1) * half;
+    const y = b.y + b.h * (0.04 + 0.92 * v);
+    sparks.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 18, vy: -(15 + Math.random() * 45),
+      r: 0.8 + Math.random() * 1.8, life: 1.1 + Math.random() * 1.0, age: Math.random() * -0.5 - (1 - v) * 0.25,
+      c: PAL[Math.min(PAL.length - 1, Math.floor(((1 - v) * 0.6 + Math.random() * 0.4) * PAL.length))],
+    });
+  }
+};
+
+function drawLantern(g, b, alpha) {
+  if (!img.complete || !img.naturalWidth) return;
+  // 一直往前播（祐：來回播看起來像火焰往內縮），每格跟下一格交叉淡化，最後一格接回第一格也不會跳
+  const fw = img.naturalWidth / FRAMES;
+  const pos = (performance.now() - t0) / 1000 / FRAME_S;
+  const f = Math.floor(pos) % FRAMES, nf = (f + 1) % FRAMES, mix = pos - Math.floor(pos);
+  g.globalAlpha = alpha;
+  g.drawImage(img, f * fw, 0, fw, img.naturalHeight, b.x, b.y, b.w, b.h);
+  g.globalAlpha = alpha * mix;
+  g.drawImage(img, nf * fw, 0, fw, img.naturalHeight, b.x, b.y, b.w, b.h);
+  g.globalAlpha = 1;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const b = box();
+  const fade = fadeAt < 0 ? 1 : Math.max(0, 1 - (now - fadeAt) / 700);
+  // 光暈：隨火焰微微明暗
+  const glow = 0.35 + 0.08 * Math.sin(now / 130) + 0.05 * Math.sin(now / 57);
+  const gx = b.x + b.w / 2, gy = b.y + b.h * 0.72;
+  const rg = ctx.createRadialGradient(gx, gy, 0, gx, gy, b.w * 0.95);
+  rg.addColorStop(0, `rgba(255,190,90,${glow * fade})`);
+  rg.addColorStop(1, 'rgba(255,150,50,0)');
+  ctx.fillStyle = rg;
+  ctx.fillRect(0, 0, W, H);
+  if (fade > 0) drawLantern(ctx, b, fade);
+  if (sparks.length) {
+    ctx.globalCompositeOperation = 'lighter';
+    for (const s of sparks) {
+      s.age += dt;
+      if (s.age < 0 || s.age > s.life) continue;
+      s.x += s.vx * dt; s.y += s.vy * dt; s.vy -= 10 * dt;
+      const a = Math.sin(Math.PI * Math.min(1, s.age / s.life));
+      ctx.fillStyle = `rgba(${s.c},${a})`;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r * (1 + a * 0.6), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
