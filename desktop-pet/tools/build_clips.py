@@ -318,7 +318,9 @@ CLIPS = [
     dict(no=85, src='85% 疲憊（有點累）49', key='tiredall', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, register=False, sprites={'tired': 20},
          derive=[dict(key='tireddown', seq=(1, 12)),
                  dict(key='tiredloop', seq=[(12, 33), (32, 13)], loop=True, xfade=0.15),
-                 dict(key='tiredup', seq=(12, 45))]),
+                 dict(key='tiredup', seq=(12, 45)),
+                 # 祐 2026-11-14：疲憊改成站著，每 10–15 秒隨機播一次「揉眼」（整段 1→45，站→揉眼→站）或打哈欠
+                 dict(key='tiredrub', seq=(1, 45))]),
     # 飛行49（2026-11-12，取代兩種舊飛行）：小仙子式，身體微前傾、膝蓋彎起、雙手往兩側張開，寬度跟站著差不多，不用縮小。
     #   這段和天燈49 的首幀比其他 49 格小 2%（身高 623 對 637、腳底 694），track ×1.1196、地面線 694 補回來
     #   1–5 蹲低、6–7 起跳、8–33 飛（第 23 格≈第 15 格）、34–38 降落、39–48 站好 → 起飛 1–14、循環 15–22、落地 23–48（先飛完一段再降落）
@@ -335,7 +337,29 @@ CLIPS = [
     #   首幀比其他 49 格小 2%（同飛行49）；蹲著時裙襬會超出畫布左緣 9px，9–37 整體往右挪 14px（pet.js 的 SPARK_DX 一起算）
     dict(no=88, src='仙女棒49', key='sparkler', anchor='track', track=[(1, 1.1196, 0), (9, 1.1196, 14), (37, 1.1196, 14), (44, 1.1196, 0)],
          ground_src=694, match=1, once=True, range=(1, 46)),
+    # 凱爾特豎琴49（2026-11-13）：1–13 金光中豎琴出現、14–38 撥弦（16–38 是木頭色、位置不動）、39–44 化成光點、45–49 回站姿。
+    #   去背時琴弦被吃掉大半，tools/patches/harp49_strings.py 把 16–38 格的殘影清掉、重畫 16 條琴弦。豎琴底座在原圖 y≈736，畫布下緣夠放。
+    #   演奏：1→18 播一次，18–38 來回（單向接縫差都比相鄰格大），收琴從當下那格播到 49
+    dict(no=89, src='凱爾特豎琴49', key='harpall', anchor='track', track=[(1, 1.1196)], ground_src=694, match=1, once=True, register=False,
+         preprocess='patches/harp49_strings.py',
+         derive=[dict(key='harpstart', seq=(1, 18)),
+                 dict(key='harp', seq=[(18, 38), (37, 19)], loop=True, xfade=0.1),
+                 dict(key='harpend', seq=(18, 49))]),
+    # 電子琴49（2026-11-13）：4–7 鍵盤發光出現、8–38 彈琴（左右移動、點頭）、39–42 鍵盤化成光點、43–49 回站姿。
+    #   演奏：1→10 播一次，10–37 來回，收琴從當下那格播到 49
+    dict(no=90, src='電子琴49', key='keysall', anchor='track', track=[(1, 1.1196)], ground_src=694, match=1, once=True, register=False,
+         derive=[dict(key='keysstart', seq=(1, 10)),
+                 dict(key='keys', seq=[(10, 37), (36, 11)], loop=True, xfade=0.1),
+                 dict(key='keysend', seq=(10, 49))]),
     # 收信（2026-11-10，49 格，鏡頭不動）：信封飄下 → 接住拆封 → 讀信 → 信淡出 → 回站姿；40 之後靜止
+    # 新的暈倒＋起身49（2026-11-14，取代昏倒2 側躺；祐：週上限躺平跟蓋棉被睡覺太像）：從站姿開始，首幀比其他 49 格小 2%（同飛行49）
+    #   1–8 頭暈扶額、腿軟坐倒；9–15 側坐垂頭；16–25 閉眼昏迷（呼吸般微動，來回循環）；26–35 頭更低、手撐地；36–38 站起（37 動態模糊，放慢）；39–49 站好
+    #   坐倒時裙襬比站姿寬、也比腳底低（離鏡頭近）：9–35 往右挪 20px、14–35 往上提 10px，才不會出畫布
+    dict(no=91, src='新的暈倒＋起身49', key='faint3all', anchor='track',
+         track=[(7, 1.1196, 0, 0), (9, 1.1196, 20, 0), (12, 1.1196, 20, 0), (15, 1.1196, 20, -10), (35, 1.1196, 20, -10), (37, 1.1196, 0, 0)], ground_src=694, match=1, once=True, register=False,
+         derive=[dict(key='faint3down', seq=(1, 16), speed=0.8),
+                 dict(key='faint3', seq=[(16, 25), (24, 17)], loop=True, xfade=0.15, speed=0.6),
+                 dict(key='faint3up', seq=[(16, 34), (35, 38, 0.6), (39, 49)])]),
     dict(no=69, src='收信49', key='mail', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, range=(1, 40)),
     dict(no=68, src='搖頭困惑、不認同49', key='shake', anchor='track', track=[(1, 1.095)], ground_src=702, match=1, once=True, range=(5, 46)),   # 1–5 還沒動、46 之後靜止
     dict(no=61, src='飛行（平飛）詭異', name='平飛剪接', key='fly3all_cut', wired=False, anchor='track', track=[(3, 1.095), (6, 1.0), (35, 1.0), (37, 1.095)],
@@ -428,6 +452,12 @@ def main():
             layer = Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), ufile)).convert('RGBA')
             for fi in ufr:
                 patched = layer.copy(); patched.alpha_composite(frames[fi - 1]); frames[fi - 1] = patched
+        # preprocess：tools/ 底下的 .py，裡面的 fix(frames) 會拿到原圖 768×768 的格（第 1 格在 frames[0]），回傳修好的（例如豎琴琴弦重畫）
+        if c.get('preprocess'):
+            import importlib.util
+            spec = importlib.util.spec_from_file_location('pre', os.path.join(os.path.dirname(os.path.abspath(__file__)), c['preprocess']))
+            pre = importlib.util.module_from_spec(spec); spec.loader.exec_module(pre)
+            frames = pre.fix(frames)
         # replace：{格序: 圖檔}，整格換成修補好的圖（原圖座標 768×768）
         for fi, rfile in c.get('replace', {}).items():
             frames[fi - 1] = Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)), rfile)).convert('RGBA')
@@ -496,22 +526,22 @@ def main():
         seat = round(oy + c['seat'] * s) if c.get('seat') else None
 
         def track_at(i):
-            # 回傳 (k, dx)：關鍵格之間線性內插；dx 是水平微調（省略＝0）
-            ks = [(t[0], t[1], t[2] if len(t) > 2 else 0) for t in c['track']]
+            # 回傳 (k, dx, dy)：關鍵格之間線性內插；dx／dy 是水平／垂直微調（省略＝0）
+            ks = [(t[0], t[1], t[2] if len(t) > 2 else 0, t[3] if len(t) > 3 else 0) for t in c['track']]
             if i <= ks[0][0]: return ks[0][1:]
-            for (f0, k0, d0), (f1, k1, d1) in zip(ks, ks[1:]):
+            for (f0, k0, d0, e0), (f1, k1, d1, e1) in zip(ks, ks[1:]):
                 if i <= f1:
                     u = (i - f0) / (f1 - f0)
-                    return k0 + (k1 - k0) * u, d0 + (d1 - d0) * u
+                    return k0 + (k1 - k0) * u, d0 + (d1 - d0) * u, e0 + (e1 - e0) * u
             return ks[-1][1:]
 
         for i, im in enumerate(frames, r0):
             if a == 'track':
-                tk, tdx = track_at(i)
+                tk, tdx, tdy = track_at(i)
                 s = S_GLOBAL * tk
                 sz = int(round(768 * s))
                 bi = bbs[i - r0]
-                ox, oy = STAND_X + tdx - 384 * s, GROUND - c.get('ground_src', bi[3]) * s
+                ox, oy = STAND_X + tdx - 384 * s, GROUND + tdy - c.get('ground_src', bi[3]) * s
                 if 'top_min' in c and oy + bi[1] * s < c['top_min']:   # 跳太高會出畫布：這格往下挪到剛好不出去
                     oy = c['top_min'] - bi[1] * s
             xf.append((ox, oy, s))

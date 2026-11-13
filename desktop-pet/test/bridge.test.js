@@ -115,3 +115,17 @@ test('動作通道：requestAction 寫 act.json，takeAction 只取新的、10 �
   assert.match(out, /curtsy/);
   assert.strictEqual(bridge.takeAction(d.id).action, 'curtsy');
 });
+
+test('readQuota：從對話紀錄檔尾讀出撞到哪個額度、幾點恢復', () => {
+  const now = Date.parse('2026-11-13T14:50:00Z');
+  const f = path.join(tmp, 'quota.jsonl');
+  const line = (type, ts) => JSON.stringify({ type: 'assistant', timestamp: ts, error: 'rate_limit',
+    quotaLimits: { status: 'rejected', rateLimitType: type, resetsAt: 1794584400 } });
+  fs.writeFileSync(f, `{"type":"user"}\n${line('five_hour', '2026-11-13T14:49:45Z')}\n`);
+  assert.deepStrictEqual(bridge.readQuota(f, now), { kind: 'five', rateLimitType: 'five_hour', resetsAt: 1794584400 });
+  fs.writeFileSync(f, `${line('seven_day_opus', '2026-11-13T14:49:45Z')}\r\n`);
+  assert.strictEqual(bridge.readQuota(f, now).kind, 'week');
+  fs.writeFileSync(f, `${line('five_hour', '2026-11-13T14:00:00Z')}\n`);   // 太舊的不算
+  assert.strictEqual(bridge.readQuota(f, now), null);
+  assert.strictEqual(bridge.readQuota(path.join(tmp, 'nope.jsonl'), now), null);
+});

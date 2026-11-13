@@ -85,6 +85,35 @@ function mapHookEvent(input) {
   }
 }
 
+// 撞到額度時，Claude Code 會在對話紀錄（transcript_path）最後寫一筆 quotaLimits：
+//   { status: 'rejected', rateLimitType: 'five_hour' | 'seven_day' | 'seven_day_*', resetsAt: 秒 }
+// 只讀檔尾 64KB，找最後一筆 2 分鐘內的；找不到回傳 null（就照舊用用量猜）
+function readQuota(file, now = Date.now()) {
+  if (typeof file !== 'string' || !file) return null;
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size;
+    const len = Math.min(size, 64 * 1024);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, size - len);
+    const lines = buf.toString('utf8').split(/\r?\n/).reverse();
+    for (const line of lines) {
+      if (!line.includes('"quotaLimits"')) continue;
+      let j; try { j = JSON.parse(line); } catch (_) { continue; }
+      const q = j.quotaLimits;
+      if (!q || q.status !== 'rejected') continue;
+      const ts = Date.parse(j.timestamp || '') || now;
+      if (now - ts > 2 * 60 * 1000) return null;
+      const type = String(q.rateLimitType || '');
+      const kind = type.startsWith('seven_day') ? 'week' : type === 'five_hour' ? 'five' : null;
+      if (!kind) return null;
+      return { kind, rateLimitType: type, resetsAt: typeof q.resetsAt === 'number' ? q.resetsAt : null };
+    }
+  } catch (_) { /* 讀不到就算了 */ } finally { if (fd !== undefined) try { fs.closeSync(fd); } catch (_) {} }
+  return null;
+}
+
 function applyHookEvent(input, now = Date.now()) {
   const dir = stateDir();
   const m = mapHookEvent(input);
@@ -102,7 +131,7 @@ function applyHookEvent(input, now = Date.now()) {
     });
   }
   if (m.limit) {
-    writeJSON(path.join(dir, 'limit.json'), { hit: true, error: input.error, ts: now });
+    writeJSON(path.join(dir, 'limit.json'), Object.assign({ hit: true, error: input.error, ts: now }, readQuota(input.transcript_path, now) || {}));
   }
   if (m.clearLimit) {
     try { fs.unlinkSync(path.join(dir, 'limit.json')); } catch (_) {}
@@ -188,6 +217,6 @@ function takeAction(lastId, maxAgeMs = 10000, now = Date.now()) {
 }
 
 module.exports = {
-  stateDir, writeJSON, readJSON, mapHookEvent, applyHookEvent, applyStatusline,
+  stateDir, writeJSON, readJSON, mapHookEvent, applyHookEvent, applyStatusline, readQuota,
   readSnapshot, pruneSessions, safeId, requestAction, takeAction,
 };

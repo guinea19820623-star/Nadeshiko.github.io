@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 
 const TOGGLES = [
   ['walk', '在螢幕下緣走動'], ['fly', '偶爾飛起來'],
-  ['voice', '語音'], ['perch', '坐到視窗邊緣'], ['bubble', '頭上小字'], ['staminaAlways', '體力條常駐'], ['alwaysOnTop', '保持在最上層'],
+  ['voice', '語音'], ['perch', '坐到視窗邊緣'], ['bubble', '頭上小字'], ['alwaysOnTop', '保持在最上層'],
 ];
 const FORCE = [
   [null, '自動（跟 Claude 連動）'], ['free', '精神飽滿（隨機）'], ['thinking', '思考中'], ['working', '工作中'],
@@ -33,7 +33,7 @@ const VLABEL = {
   drag: '被拎起', dizzy: '摔暈', fly: '飛行', sit: '坐下休息', wake: '睡醒', hello: '打招呼', thinking: '思考中', working: '工作中',
   waiting: '等你確認', done: '完成', error: '出錯', tired: '疲憊', exhausted: '5h 用完（睡覺）', faint: '暈倒（週上限）', perch: '坐在視窗邊緣',
   shy: '害羞', greet_morning: '早安問候', greet_noon: '中午問候', greet_afternoon: '下午問候', greet_evening: '晚上問候', greet_night: '深夜問候',
-  perch_lie: '趴在視窗上', drop: '飄落', mail: '收信', pray: '禱告', gift: '聖誕禮物', birthday: '生日快樂', nod: '點頭贊同', shake: '搖頭困惑',
+  perch_lie: '趴在視窗上', drop: '飄落', mail: '收信', pray: '禱告', lantern: '放天燈', sparkler: '仙女棒', gift: '聖誕禮物', birthday: '生日快樂', nod: '點頭贊同', shake: '搖頭困惑',
 };
 let voiceData = null;   // { lines, files, url, voice, max }
 let studioAudio = null;
@@ -143,7 +143,7 @@ async function main() {
     b.onclick = () => host.action(key);
     $('actions').appendChild(b);
   }
-  for (const kind of ['sing', 'violin', 'conduct']) {
+  for (const kind of ['sing', 'violin', 'conduct', 'harp', 'keys']) {
     $(`plain-${kind}`).onclick = () => host.action(kind);
     $(`refresh-${kind}`).onclick = () => renderSongs(kind);
     $(`open-${kind}`).onclick = () => host.musicOpen(kind);
@@ -199,7 +199,8 @@ function renderVoice() {
       <div class="f"><span>顯示</span><input type="text" class="t-text" placeholder="頭上顯示的字"></div>
       <div class="f"><span>唸</span><input type="text" class="t-say" placeholder="實際唸的字（空白＝跟顯示一樣）"></div>
       <div class="f"><span>句尾</span><span>補 <input type="number" class="t-pad" min="0" max="5" step="1"> 個「……」，再接 <input type="number" class="t-tail" min="0" max="1500" step="50"> 毫秒靜音</span></div>
-      <div class="f"><span>音量</span><span><input type="range" class="t-vol" min="20" max="200" step="5"> <b class="t-volv"></b>（這句自己的大小聲，跟總音量相乘）</span></div>
+      <div class="f"><span>音量</span><span><input type="range" class="t-vol" min="20" max="300" step="5"> <b class="t-volv"></b> <button class="b-gain">套用到音檔</button> <button class="b-restore">還原原始音量</button></span></div>
+      <p class="hint" style="margin:2px 0 6px">調整到滿意的音量後，請按下「套用到音檔」。</p>
       <div class="f"><span>次數</span><span>連生 <input type="number" class="t-n" min="1" max="5" step="1" value="1"> 次，挑一個最好的</span></div>
       <div class="btns"><button class="b-play">▶ 試聽現有</button><button class="b-gen primary">生成</button></div>
       <div class="takes"></div><p class="vmsg"></p>`;
@@ -209,14 +210,43 @@ function renderVoice() {
     d.querySelector('.t-tail').value = l.tail || 0;
     const volIn = d.querySelector('.t-vol');
     const volOut = d.querySelector('.t-volv');
-    volIn.value = Number(l.vol) > 0 ? l.vol : 100;
+    // 滑桿＝相對原檔的音量：套用過就停在套用的值（gain），按「還原原始音量」才回 100%（祐 2026-11-14）
+    const applied = Number(l.gain) > 0 ? Number(l.gain) : 100;
+    volIn.value = Number(l.vol) > 0 ? Math.round(l.vol * applied / 100) : applied;
     volOut.textContent = `${volIn.value}%`;
     volIn.oninput = () => { volOut.textContent = `${volIn.value}%`; };
+    // 直接改音檔音量（祐 2026-11-13）：一律從原檔重算，舊的 vol（播放時放大）一起算進去
+    const gainBtn = d.querySelector('.b-gain');
+    const restoreBtn = d.querySelector('.b-restore');
+    const backedUp = (voiceData.backups || []).includes(`${key}_${i + 1}`);
+    if (isNew || !have(i)) { gainBtn.disabled = true; restoreBtn.style.display = 'none'; }
+    else if (!backedUp) restoreBtn.style.display = 'none';
+    gainBtn.onclick = async () => {
+      if (Number(volIn.value) === applied && !(Number(l.vol) > 0)) { vmsg(d, `音檔已經是 ${applied}%，不用改`); return; }
+      gainBtn.disabled = true;
+      vmsg(d, '改音檔中…');
+      const r = await host.voiceGain({ key, i, percent: Number(volIn.value) });
+      gainBtn.disabled = false;
+      if (r.error) { vmsg(d, r.error, true); return; }
+      voiceData = { ...voiceData, lines: r.lines, files: r.files, backups: r.backups };
+      renderVoice();
+      const nb = $('v-lines').querySelectorAll('.vline')[i];
+      if (nb) vmsg(nb, `已把音檔改成 ${volIn.value}%（原檔有備份，可以還原），撫子下次開口就是新的音量`);
+    };
+    restoreBtn.onclick = async () => {
+      const r = await host.voiceGain({ key, i, restore: true });
+      if (r.error) { vmsg(d, r.error, true); return; }
+      voiceData = { ...voiceData, lines: r.lines, files: r.files, backups: r.backups };
+      renderVoice();
+      const nb = $('v-lines').querySelectorAll('.vline')[i];
+      if (nb) vmsg(nb, '已還原成原本的音檔');
+    };
     const play = d.querySelector('.b-play');
     if (isNew || !have(i)) play.disabled = true;
     play.onclick = async () => {
       const r = await host.voiceRead(key, i);
-      if (r) playBytes(r.bytes, r.mime, Number(volIn.value)); else vmsg(d, '這句還沒有音檔', true);
+      // 現有音檔已經是 applied%，試聽時換算回「相對原檔」的滑桿值
+      if (r) playBytes(r.bytes, r.mime, Number(volIn.value) * 100 / applied); else vmsg(d, '這句還沒有音檔', true);
     };
     const entry = () => ({
       text: d.querySelector('.t-text').value, say: d.querySelector('.t-say').value,
@@ -227,16 +257,26 @@ function renderVoice() {
       const b = document.createElement('button');
       b.textContent = label;
       b.onclick = async () => {
-        const r = await host.voiceAdopt({ key, i, entry: entry(), takeId });
+        // 只存文字：音量維持原樣（不碰 vol）；採用新音檔：滑桿不是 100% 就直接把音量做進新音檔
+        const e = entry();
+        const pct = Number(volIn.value);
+        e.vol = takeId ? 100 : (Number(l.vol) > 0 ? l.vol : 100);
+        if (!takeId) e.gain = l.gain;
+        let r = await host.voiceAdopt({ key, i, entry: e, takeId });
         if (r.error) { vmsg(d, r.error, true); return; }
-        voiceData = { ...voiceData, lines: r.lines, files: r.files };
+        if (takeId && pct !== 100) {
+          const g = await host.voiceGain({ key, i, percent: pct });
+          if (g.error) { vmsg(d, `已採用，但改音量失敗：${g.error}`, true); return; }
+          r = g;
+        }
+        voiceData = { ...voiceData, lines: r.lines, files: r.files, backups: r.backups || voiceData.backups };
         renderVoice();
         const nb = $('v-lines').querySelectorAll('.vline')[i];
-        if (nb) vmsg(nb, takeId ? '已採用，撫子下次開口就是新的聲音' : '已存台詞與音量（音檔沒變）');
+        if (nb) vmsg(nb, takeId ? `已採用${pct !== 100 ? `（音量 ${pct}%）` : ''}，撫子下次開口就是新的聲音` : '已存台詞（音檔沒變）');
       };
       return b;
     };
-    if (!isNew) d.querySelector('.btns').appendChild(adoptBtn('只存文字與音量（不換音檔）', null));
+    if (!isNew) d.querySelector('.btns').appendChild(adoptBtn('只存文字（不換音檔）', null));
     d.querySelector('.b-gen').onclick = async (ev) => {
       const e = entry();
       if (!e.text.trim() && !e.say.trim()) { vmsg(d, '請先填要唸的字', true); return; }

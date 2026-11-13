@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('petHost', {
   onSummon: on('pet:summon'),
   onVoice: on('pet:voice'),
   lantern: (o) => ipcRenderer.send('pet:lantern', o),
+  readScore: (file) => ipcRenderer.sendSync('score:read', file),
 });
 
 contextBridge.exposeInMainWorld('panelHost', {
@@ -39,6 +40,7 @@ contextBridge.exposeInMainWorld('panelHost', {
   voiceRead: (key, i) => ipcRenderer.invoke('voice:read', key, i),
   voiceGen: (o) => ipcRenderer.invoke('voice:gen', o),
   voiceAdopt: (o) => ipcRenderer.invoke('voice:adopt', o),
+  voiceGain: (o) => ipcRenderer.invoke('voice:gain', o),
   onSettings: on('panel:settings'),
   onSnapshot: on('panel:snapshot'),
   onForce: on('panel:force'),

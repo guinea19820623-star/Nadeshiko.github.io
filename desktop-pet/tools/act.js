@@ -4,6 +4,7 @@
 //   node tools/act.js wave "嗨～"
 //   node tools/act.js curtsy
 //   node tools/act.js violin --song 第三樂章     （唱歌 sing／小提琴 violin／指揮 conduct：曲名含這幾個字的第一首）
+//   node tools/act.js harp --song 小步舞曲      （豎琴 harp／電子琴 keys：撫子照 app/scores/ 的樂譜自己彈）
 // 能用的動作：yawn stretch wave cheer curious pose happy shy pray curtsy pirouette arabesque
 //   （這些在 Claude 工作中也會先演完）；walk fly sit doze nap wake perch 也收，但 Claude 一忙就會被工作狀態蓋過
 // 桌寵沒開的話什麼都不會發生；10 秒內沒被讀走的要求會作廢。

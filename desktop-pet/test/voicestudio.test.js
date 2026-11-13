@@ -89,5 +89,35 @@ test('adopt：音量 vol 存進台詞表（100 不寫、範圍 20~200）', () =>
   assert.deepStrictEqual(read(), { text: '嗨～' });
   s.adopt(dir, 'wave', 0, { text: '嗨～', vol: 999 }, null);
   assert.strictEqual(read().vol, 200);
+  s.adopt(dir, 'wave', 0, { text: '嗨～', gain: 60 }, null);          // 只存文字：沿用套用過的音量
+  assert.strictEqual(read().gain, 60);
+  s.adopt(dir, 'wave', 0, { text: '嗨～', vol: 999 }, null);
+  assert.strictEqual(read().vol, 200);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('setFileGain／restoreFile：直接改音檔音量、從原檔算、可以還原、清掉 vol', { skip: !s.hasFfmpeg() }, () => {
+  const { spawnSync } = require('child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vg-'));
+  const bak = path.join(dir, 'bak');
+  fs.writeFileSync(path.join(dir, 'lines.json'), s.formatLines({ wave: [{ text: '嗨', vol: 60 }] }));
+  spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=0.5', '-af', 'volume=0.2', '-ac', '1', '-ar', '24000', path.join(dir, 'wave_1.mp3')]);
+  const peak = () => {
+    const r = spawnSync('ffmpeg', ['-i', path.join(dir, 'wave_1.mp3'), '-af', 'volumedetect', '-f', 'null', '-'], { encoding: 'utf8' });
+    return Number(/max_volume: (-?[\d.]+) dB/.exec(r.stderr)[1]);
+  };
+  const p0 = peak();
+  s.setFileGain(dir, bak, 'wave', 0, 200);
+  assert.ok(Math.abs(peak() - p0 - 6) < 1, '200% ≈ +6 dB');
+  s.setFileGain(dir, bak, 'wave', 0, 200);           // 從原檔算，不會疊加
+  assert.ok(Math.abs(peak() - p0 - 6) < 1);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'lines.json'), 'utf8')).wave[0].vol, undefined);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'lines.json'), 'utf8')).wave[0].gain, 200, '記下套用的音量，滑桿停在這裡');
+  assert.ok(s.hasBackup(bak, 'wave', 0));
+  s.restoreFile(dir, bak, 'wave', 0);
+  assert.ok(Math.abs(peak() - p0) < 0.5);
+  assert.ok(!s.hasBackup(bak, 'wave', 0));
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'lines.json'), 'utf8')).wave[0].gain, undefined, '還原後回到 100%');
+  assert.throws(() => s.setFileGain(dir, bak, 'wave', 0, 1000));
   fs.rmSync(dir, { recursive: true, force: true });
 });

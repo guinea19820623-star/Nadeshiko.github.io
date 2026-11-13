@@ -13,7 +13,6 @@ const canvas = document.getElementById('pet');
 const ctx = canvas.getContext('2d', { willReadFrequently: true });
 const bubbleEl = document.getElementById('bubble');
 const bubbleText = document.getElementById('bubble-text');
-const staminaEl = document.getElementById('stamina');
 const fxEl = document.getElementById('fx');
 
 // 沒有左右腳交替的素材，用「大步 → 收腳 → 抬後腳 → 跨出」四張輪播
@@ -577,19 +576,40 @@ const PERFORM = {
   sing: { start: 'singstart', loop: 'sing', end: 'singend', dir: '' },
   violin: { start: 'violinstart', loop: 'violin', end: 'violinend', dir: 'violin/' },
   conduct: { start: 'conductstart', loop: 'conduct', end: 'conductend', dir: 'conduct/' },
+  // 豎琴、電子琴（祐 2026-11-13）：撫子照 app/scores/ 的樂譜自己彈，聲音即時合成（instrument.js），不用錄音檔
+  harp: { start: 'harpstart', loop: 'harp', end: 'harpend', synth: 'harp' },
+  keys: { start: 'keysstart', loop: 'keys', end: 'keysend', synth: 'piano' },
 };
 const PERFORMING = new Set(Object.keys(PERFORM));
 function performMode(kind, file) {
   const p = PERFORM[kind];
   let audio = null;
   let ended = false;
-  const title = file ? file.replace(/\.[^.]+$/, '') : '';
-  const dur = file ? Infinity : 20;
+  let title = file ? file.replace(/\.[^.]+$/, '') : '';
+  let dur = file ? Infinity : 20;
+  let synth = null, endAt = 0;
   return {
     name: kind,
     rise: p.end,
     enter() {
       ensureClip(p.start); ensureClip(p.loop); ensureClip(p.end);
+      if (p.synth && file) {
+        // 自己彈：讀樂譜、合成，等前奏動作（道具出現、拿好）播完才開始彈
+        try {
+          const score = host.readScore(file);
+          const compiled = ScoreCore.compile(score);
+          title = score.title || title;
+          audioCtx = audioCtx || new AudioContext();
+          if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+          const vol = S.settings.voice === false ? 0 : clamp(S.settings.volume / 100, 0, 1);
+          synth = Instrument.makePlayer(audioCtx, p.synth, vol);
+          const lead = clipDef(p.start) ? clipSeconds(p.start) : 0.5;
+          const times = synth.play(compiled, lead);
+          endAt = performance.now() + (times.end - audioCtx.currentTime) * 1000 + 600;
+        } catch (e) { ended = true; S.say = { text: `彈不出來：${title}`, until: performance.now() + 4000 }; return; }
+        S.say = { text: `♪ ${title}`, until: performance.now() + 3000 };
+        return;
+      }
       S.say = { text: title ? `♪ ${title}` : '♪～', until: performance.now() + 3000 };
       if (!file) return;
       try {
@@ -600,9 +620,10 @@ function performMode(kind, file) {
         audio.play().catch(() => { ended = true; });
       } catch (_) { ended = true; }
     },
-    exit() { if (audio) { audio.pause(); audio = null; } },
+    exit() { if (audio) { audio.pause(); audio = null; } if (synth) { synth.stop(); synth = null; } },
     update(dt, t) {
-      if (!lieView(p.start, p.loop, t)) { view.sprite = 'idle'; breathe(t); }
+      if (!lieView(p.start, p.loop, t, p.synth ? 0 : undefined)) { view.sprite = 'idle'; breathe(t); }
+      if (synth && performance.now() > endAt) ended = true;
       return !ended && t < dur;
     },
   };
@@ -1195,6 +1216,8 @@ const CLAUDE_SEQ = {
   error: { down: 'errdown', loop: 'errloop', rise: 'errup' },
   thinking: { down: 'thinkdown', loop: 'thinkloop', rise: 'thinkup' },
   waiting: { down: 'waitdown', loop: 'waitloop', rise: 'waitup' },
+  // 週上限（祐 2026-11-14）：新的暈倒＋起身49，從站姿頭暈坐倒、垂頭昏迷循環，恢復時從當下那格起身（不再躺平，免得跟蓋棉被睡覺太像）
+  faint: { down: 'faint3down', loop: 'faint3', rise: 'faint3up' },
 };
 
 function claudeMode(body) {
@@ -1203,17 +1226,19 @@ function claudeMode(body) {
   const seq = CLAUDE_SEQ[body] && clipDef(CLAUDE_SEQ[body].loop) ? CLAUDE_SEQ[body] : null;
   const clip = seq ? null : CLAUDE_CLIP[body];
   let t0 = -1;
+  let act = null, nextAt = 0, hold = null, idleAt = 0; // 疲憊：正在播的小動作、下一次開始的時間、播完停住的那格、站姿循環開始的時間
   return {
     name: `claude:${body}`,
     body,
-    rise: seq ? seq.rise : body === 'tired' && clipDef('tiredup') ? 'tiredup' : undefined, // 疲憊結束：從當下那格打起精神站好
+    // 疲憊結束：正在打哈欠／揉眼就從當下那格播完（兩段結尾都是站好），站著時直接接下一個狀態
+    get rise() { return seq ? seq.rise : act ? act.name : undefined; },
     wakeFrom: body === 'faint' ? 'faint2' : body,
-    lying: body === 'exhausted' || body === 'faint',
+    lying: body === 'exhausted' || (body === 'faint' && !seq), // 新暈倒是坐著，走 rise；素材缺時才退回舊的側躺昏倒
     enter() {
       if (seq) { ensureClip(seq.down); ensureClip(seq.loop); ensureClip(seq.rise); }
       if (clip) ensureClip(clip);
-      if (body === 'tired') { ensureClip('tireddown'); ensureClip('tiredloop'); ensureClip('tiredup'); ensureClip('yawn'); }
-      if (body === 'faint') { ensureClip('faint2down'); ensureClip('faint2'); }
+      if (body === 'tired') { ensureClip('tiredrub'); ensureClip('yawn'); ensureClip('idle'); nextAt = 2 + Math.random() * 3; }
+      if (body === 'faint' && !seq) { ensureClip('faint2down'); ensureClip('faint2'); }
       if (body === 'exhausted') { ensureClip('blanketdown'); ensureClip('blanket'); }
     },
     update(dt, t) {
@@ -1255,14 +1280,24 @@ function claudeMode(body) {
           view.rot = Math.sin(t * 1.7) * 0.02;
           break;
         case 'tired': {
-          // 偶爾打個哈欠（新版哈欠片段約 5 秒，從第 9 秒開始播，剛好接在 14 秒循環結束前）
-          const cyc = t % 14;
-          if (cyc > 9 && playClip('yawn', cyc - 9, { base: 'tired', fadeIn: 0.25, fadeOut: 0.3, dur: 5 })) break;
-          // 疲憊49：肩膀垂下、眼皮變重 → 揉眼搖晃來回；沒有 49 格版才用舊的 25 格
-          if (clipDef('tiredloop') ? lieView('tireddown', 'tiredloop', t, 0) : playClip('tired', t)) break;
-          view.blend = null; // 剛打完哈欠的淡出殘留要清掉
-          view.sprite = cyc > 9.5 ? 'yawn' : eyes('tired', t, 0.9);
-          breathe(t, 0.012, 4.6);
+          // 祐 2026-11-14：站姿循環，每 10–15 秒穿插一次「打哈欠」或「揉眼」（疲憊49 的 1→45），兩段都完整播：站→動作→站
+          if (!act && t >= nextAt) {
+            const pick = ['yawn', 'tiredrub'].filter((k) => clipDef(k) && ensureClip(k));
+            if (pick.length) act = { name: pick[Math.floor(Math.random() * pick.length)], at: t, from: hold || (view.sprite.startsWith('clip:') ? view.sprite : null) };
+          }
+          if (act) {
+            const lt = t - act.at;
+            // 上一段停住的那格淡進新的一段（兩段影片的站姿差一點點，淡 0.3 秒就看不出來）
+            if (lt < clipSeconds(act.name) && playClip(act.name, lt, act.from ? { base: act.from, fadeIn: 0.3 } : undefined)) break;
+            hold = clipKey(act.name, clipDef(act.name).frames.length - 1);
+            act = null;
+            nextAt = t + 10 + Math.random() * 5;
+            idleAt = t;
+          }
+          // 兩段之間：站姿循環（站著發呆49），從剛播完那格淡進去；影片本身就有呼吸，不用程式晃（祐 2026-11-14）
+          if (playClip('idle', t - idleAt, hold && t - idleAt < 0.4 ? { base: hold, fadeIn: 0.3 } : undefined)) break;
+          view.blend = null;
+          view.sprite = hold || eyes('tired', t, 0.9);
           break;
         }
         case 'exhausted':
@@ -1553,11 +1588,8 @@ function updateBubble(r) {
   else if (r.body !== 'free') text = core.bubbleText(r, Date.now());
   else if (mode && mode.name === 'nap') text = 'Zzz…';
 
-  const u = r.usage || {};
-  const hasUsage = u.five != null || u.week != null;
-  const showStamina = hasUsage && (S.settings.staminaAlways || S.hover || ['tired', 'exhausted', 'faint'].includes(r.body));
-
-  const visible = !!text || showStamina;
+  // 體力條移除（祐 2026-11-14）：用量看 Claude 對話框下面的用量圈圈，桌寵只用動作和「有點累了…」提醒
+  const visible = !!text;
   bubbleEl.classList.toggle('hidden', !visible);
   if (!visible) return; // 淡出時保留舊字，不會閃出空白泡泡
   // 思考/工作時，句尾的「…」改成會動的點點
@@ -1565,11 +1597,6 @@ function updateBubble(r) {
   if (dots) text = text.slice(0, -1);
   if (bubbleText.textContent !== text) bubbleText.textContent = text;
   bubbleText.classList.toggle('dots', dots);
-  staminaEl.classList.toggle('hidden', !showStamina);
-  if (showStamina) {
-    setBar('5', u.five);
-    setBar('7', u.week);
-  }
   placeBubble();
 }
 
@@ -1601,16 +1628,6 @@ function placeBubble() {
   bubbleEl.style.top = `${Math.round(top)}px`;
   bubbleEl.style.setProperty('--tail-x', `${Math.round(clamp(head.x - left, 34, w - 34))}px`);
   bubbleEl.classList.toggle('no-tail', top + h > head.y);
-}
-
-function setBar(id, v) {
-  const bar = document.getElementById(`bar${id}`);
-  const pct = document.getElementById(`pct${id}`);
-  // 體力條顯示「剩餘」，比較直覺
-  const left = v == null ? null : clamp(100 - v, 0, 100);
-  bar.style.width = `${left == null ? 0 : left}%`;
-  bar.style.background = left == null ? 'transparent' : left <= 15 ? 'var(--bad)' : left <= 40 ? 'var(--warn)' : 'var(--ok)';
-  pct.textContent = left == null ? '–' : `${Math.round(left)}%`;
 }
 
 let lastFrame = performance.now();

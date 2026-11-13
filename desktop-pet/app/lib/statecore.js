@@ -74,7 +74,12 @@
     let limitKind = null; // 'week' | 'five'
     let limitUntil = null;
     const lim = snap.limit;
-    if (lim && lim.hit) {
+    if (lim && lim.hit && lim.kind) {
+      // hook 從對話紀錄讀到的確切資訊（祐 2026-11-14）：撞到哪一個額度、幾點恢復
+      limitKind = lim.kind; limitUntil = lim.resetsAt || null;
+      const expire = limitUntil ? limitUntil * 1000 : (lim.ts || 0) + o.limitFallbackMs;
+      if (now >= expire) limitKind = null;
+    } else if (lim && lim.hit) {
       if (week != null && week >= o.faintAt - 5) {
         limitKind = 'week'; limitUntil = usage.weekResets;
       } else if (five != null && five >= o.napAt - 5) {
@@ -102,7 +107,7 @@
       body = 'free'; // 交給隨機行為
     }
 
-    return { body, activity, tool, usage, limitKind };
+    return { body, activity, tool, usage, limitKind, limitUntil: limitKind ? limitUntil : null };
   }
 
   function fmtReset(sec, now) {
@@ -118,17 +123,14 @@
 
   // 頭上小字
   function bubbleText(r, now) {
-    const pct = (v) => `${Math.round(v)}%`;
     switch (r.body) {
       case 'faint':
-        return r.usage.weekResets ? `週額度見底…${fmtReset(r.usage.weekResets, now)} 復活` : '週額度見底了…';
+        { const at = (r.limitKind === 'week' && r.limitUntil) || r.usage.weekResets; return at ? `週額度見底…${fmtReset(at, now)} 復活` : '週額度見底了…'; }
       case 'exhausted':
-        return r.usage.fiveResets ? `休息一下，${fmtReset(r.usage.fiveResets, now)} 再戰` : '額度用完，休息中…';
+        { const at = (r.limitKind === 'five' && r.limitUntil) || r.usage.fiveResets; return at ? `休息一下，${fmtReset(at, now)} 再戰` : '額度用完，休息中…'; }
       case 'tired': {
-        // 跟體力條一致，顯示「剩下多少」
-        const v = Math.max(r.usage.five || 0, r.usage.week || 0);
-        const doing = r.activity === 'working' ? '還在工作…' : r.activity === 'thinking' ? '還在想…' : '有點累了…';
-        return v ? `${doing}體力剩 ${pct(Math.max(0, 100 - v))}` : doing;
+        // 祐 2026-11-14：只說「有點累了…」，提醒注意用量就好（數字看 Claude 的用量圈圈）
+        return '有點累了…';
       }
       case 'working':
         return r.tool ? `工作中 · ${r.tool}` : '工作中…';

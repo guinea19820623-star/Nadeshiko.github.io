@@ -42,7 +42,7 @@ test('用量 85% 以上 → 疲憊，優先於工作中', () => {
   const r = core.resolve({ usage: usage(90, 10), sessions: [sess('working')] }, NOW);
   assert.strictEqual(r.body, 'tired');
   assert.strictEqual(r.activity, 'working');
-  assert.strictEqual(core.bubbleText(r, NOW), "還在工作…體力剩 10%");
+  assert.strictEqual(core.bubbleText(r, NOW), "有點累了…"); // 祐 2026-11-14：只說有點累了
 });
 
 test('週上限 → 暈倒（最高優先）；5h 用完 → 睡覺', () => {

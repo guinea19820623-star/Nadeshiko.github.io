@@ -21,7 +21,6 @@ const DEFAULT_SETTINGS = {
   random: true,      // 由 actMode 決定（不是「撫子控制」就隨機），畫面端看這個
   actMode: 'mixed',  // 動作控制方式（祐 2026-11-08）：random 隨機／claude 撫子控制／mixed 混合
   bubble: true,
-  staminaAlways: false,
   voice: true,
   perch: true,
   volume: 60,
@@ -395,8 +394,13 @@ function voiceReload() {
   return v;
 }
 
+// 調過音量、有原檔備份的句子（key_序號），面板用來決定要不要顯示「還原」
+function backupList() {
+  try { return fs.readdirSync(path.join(app.getPath('userData'), 'voice-original')).map((f) => f.replace(/\.[^.]+$/, '')); } catch (_) { return []; }
+}
+
 function setupVoiceIPC() {
-  ipcMain.handle('voice:list', () => ({ ...readVoice(), url: settings.voiceUrl, voice: settings.voiceName, max: studio.MAX_LINES }));
+  ipcMain.handle('voice:list', () => ({ ...readVoice(), url: settings.voiceUrl, voice: settings.voiceName, max: studio.MAX_LINES, backups: backupList() }));
 
   // 播現有的音檔（給面板試聽用）
   ipcMain.handle('voice:read', (_e, key, i) => {
@@ -432,12 +436,26 @@ function setupVoiceIPC() {
   });
 
   // 採用：改台詞表，有選定試聽版本就一併換掉音檔，然後讓撫子立刻重新載入
+  // 直接改現有音檔的音量／還原（原檔備份在使用者資料夾，不會放進專案）
+  const VOICE_BACKUP = path.join(app.getPath('userData'), 'voice-original');
+  ipcMain.handle('voice:gain', (_e, o) => {
+    try {
+      if (o.restore) studio.restoreFile(VOICE_DIR, VOICE_BACKUP, o.key, o.i);
+      else studio.setFileGain(VOICE_DIR, VOICE_BACKUP, o.key, o.i, o.percent);
+      return { ok: true, ...voiceReload(), backups: backupList() };
+    } catch (e) {
+      return { error: e.message };
+    }
+  });
   ipcMain.handle('voice:adopt', (_e, o) => {
     try {
       const wav = o.takeId ? takes.get(o.takeId) : null;
       if (o.takeId && !wav) throw new Error('這個試聽版本已經過期，請重新生成');
       studio.adopt(VOICE_DIR, o.key, o.i, o.entry, wav);
-      return { ok: true, ...voiceReload() };
+      if (wav) { // 換了新音檔：舊的原檔備份作廢（之後調音量要從新音檔算）
+        for (const e of ['mp3', 'ogg', 'wav']) fs.rmSync(path.join(VOICE_BACKUP, `${o.key}_${o.i + 1}.${e}`), { force: true });
+      }
+      return { ok: true, ...voiceReload(), backups: backupList() };
     } catch (e) {
       return { error: e.message };
     }
@@ -525,8 +543,8 @@ function pollAction() {
   if (!a) return;
   lastActId = a.id;
   if (settings.actMode === 'random') return; // 「隨機」模式不接撫子的動作
-  // 唱歌、小提琴、指揮：在該資料夾找曲名含 song 的第一首（找不到就只做動作）；跟使用者自己點曲子走同一條
-  if (MUSIC_SUB[a.action] != null) {
+  // 唱歌、小提琴、指揮、豎琴、電子琴：在該資料夾找曲名含 song 的第一首（找不到就只做動作）；跟使用者自己點曲子走同一條
+  if (MUSIC_SUB[a.action] != null || SYNTH_KINDS.has(a.action)) {
     const want = String(a.song || '').trim();
     const hit = want ? listSongs(a.action).find((s) => s.title.includes(want)) : null;
     send('pet:action', hit ? `${a.action}:${hit.file}` : a.action);
@@ -572,9 +590,19 @@ const ACTIONS = [
 // sing：app/music/ 的歌曲（唱歌）；violin：app/music/violin/ 的樂曲（拉小提琴）；conduct：app/music/conduct/ 的管弦樂（指揮）
 const MUSIC_DIR = path.join(__dirname, 'music');
 const MUSIC_SUB = { sing: '', violin: 'violin', conduct: 'conduct' };
-const PLAIN_LABEL = { sing: '只唱動作（不放音樂）', violin: '只拉琴（不放音樂）', conduct: '只指揮（不放音樂）' };
+const PLAIN_LABEL = { sing: '只唱動作（不放音樂）', violin: '只拉琴（不放音樂）', conduct: '只指揮（不放音樂）', harp: '只彈動作（不出聲）', keys: '只彈動作（不出聲）' };
+// 豎琴、電子琴（祐 2026-11-13）：撫子照 app/scores/ 的樂譜自己彈（聲音即時合成），樂譜檔名去掉 .json 就是曲名
+const SCORE_DIR = path.join(__dirname, 'scores');
+const SYNTH_KINDS = new Set(['harp', 'keys']);
+function listScores() {
+  try {
+    return fs.readdirSync(SCORE_DIR).filter((f) => f.endsWith('.json')).sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+      .map((file) => { let title = path.basename(file, '.json'); try { title = JSON.parse(fs.readFileSync(path.join(SCORE_DIR, file), 'utf8')).title || title; } catch (_) { /* 讀不到就用檔名 */ } return { file, title }; });
+  } catch (_) { return []; }
+}
 const MUSIC_EXT = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac']);
 function listSongs(kind = 'sing') {
+  if (SYNTH_KINDS.has(kind)) return listScores();
   try {
     return fs.readdirSync(path.join(MUSIC_DIR, MUSIC_SUB[kind] || '')).filter((f) => MUSIC_EXT.has(path.extname(f).toLowerCase()))
       .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
@@ -583,7 +611,7 @@ function listSongs(kind = 'sing') {
 }
 function songMenu(kind) {
   const songs = listSongs(kind);
-  const where = ['app/music', MUSIC_SUB[kind]].filter(Boolean).join('/');
+  const where = SYNTH_KINDS.has(kind) ? 'app/scores' : ['app/music', MUSIC_SUB[kind]].filter(Boolean).join('/');
   return [
     ...(songs.length ? songs.map((s) => ({ label: s.title, click: () => send('pet:action', `${kind}:${s.file}`) }))
       : [{ label: `（${where} 裡還沒有曲子）`, enabled: false }]),
@@ -601,6 +629,8 @@ function menuTemplate() {
     { label: '歌曲', submenu: songMenu('sing') },
     { label: '小提琴', submenu: songMenu('violin') },
     { label: '指揮', submenu: songMenu('conduct') },
+    { label: '豎琴', submenu: songMenu('harp') },
+    { label: '電子琴', submenu: songMenu('keys') },
     {
       label: '測試狀態',
       submenu: [
@@ -737,8 +767,15 @@ function setupIPC() {
   ipcMain.on('panel:force', (_e, k) => setForced(k || null));
   ipcMain.on('panel:action', (_e, k) => send('pet:action', k));
   ipcMain.handle('music:list', (_e, kind) => listSongs(kind));
+  // 樂譜（同步讀，只讀 app/scores/ 底下的 .json，檔名不能有路徑）
+  ipcMain.on('score:read', (e, file) => {
+    try {
+      if (typeof file !== 'string' || path.basename(file) !== file || !file.endsWith('.json')) throw new Error('bad name');
+      e.returnValue = JSON.parse(fs.readFileSync(path.join(SCORE_DIR, file), 'utf8'));
+    } catch (_) { e.returnValue = null; }
+  });
   ipcMain.on('music:open', (_e, kind) => {
-    const dir = path.join(MUSIC_DIR, MUSIC_SUB[kind] || '');
+    const dir = SYNTH_KINDS.has(kind) ? SCORE_DIR : path.join(MUSIC_DIR, MUSIC_SUB[kind] || '');
     fs.mkdirSync(dir, { recursive: true });
     shell.openPath(dir);
   });

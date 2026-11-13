@@ -108,10 +108,63 @@ function adopt(dir, key, i, entry, wav) {
   if (entry.tail) clean.tail = entry.tail | 0;
   const vol = Math.round(Number(entry.vol));
   if (vol > 0 && vol !== 100) clean.vol = Math.max(20, Math.min(200, vol));
+  // gain：音檔已經「套用」過的音量（相對原檔 %），只存文字時沿用；換新音檔就不算了
+  const gain = Math.round(Number(entry.gain));
+  if (!wav && gain > 0 && gain !== 100) clean.gain = gain;
   arr[i] = clean;
   const name = wav ? saveAudio(dir, voice.fileBase(key, i), wav) : null;
   fs.writeFileSync(file, formatLines(lines));
   return { lines, file: name };
 }
 
-module.exports = { DEFAULTS, MAX_LINES, spokenText, synth, parseWav, wavDurationMs, padWavSilence, hasFfmpeg, saveAudio, formatLines, adopt };
+// 直接調整現有音檔的音量（祐 2026-11-13：滿意聲音、只想改大小聲時不用重新生成）
+// percent：100＝不變；用 ffmpeg 的 volume 濾鏡改音檔本身，再接 alimiter 防止爆音。
+// 第一次調之前把原檔備份到 backupDir，之後都從原檔算（不會越調越糊），也能還原。台詞表裡這句的 vol 一併清掉
+function setFileGain(dir, backupDir, key, i, percent, ffmpeg = hasFfmpeg()) {
+  const pct = Math.round(Number(percent));
+  if (!(pct >= 10 && pct <= 400)) throw new Error('音量要在 10%～400% 之間');
+  if (!ffmpeg) throw new Error('需要 ffmpeg 才能直接改音檔（可以先用滑桿試聽）');
+  const base = voice.fileBase(key, i);
+  const ext = voice.EXTS.find((e) => fs.existsSync(path.join(dir, `${base}.${e}`)));
+  if (!ext) throw new Error('這句還沒有音檔');
+  const file = path.join(dir, `${base}.${ext}`);
+  fs.mkdirSync(backupDir, { recursive: true });
+  const orig = path.join(backupDir, `${base}.${ext}`);
+  if (!fs.existsSync(orig)) fs.copyFileSync(file, orig);
+  const tmp = path.join(dir, `${base}.gain.${ext}`);
+  const af = `volume=${(pct / 100).toFixed(3)},alimiter=limit=0.97:level=false`;
+  const args = ['-y', '-loglevel', 'error', '-i', orig, '-af', af];
+  if (ext === 'mp3') args.push('-ac', '1', '-ar', '24000', '-b:a', '48k');
+  args.push(tmp);
+  const r = spawnSync('ffmpeg', args);
+  if (r.status !== 0 || !fs.existsSync(tmp)) { fs.rmSync(tmp, { force: true }); throw new Error('ffmpeg 改音量失敗'); }
+  fs.renameSync(tmp, file);
+  setGainMark(dir, key, i, pct);
+  return `${base}.${ext}`;
+}
+
+// 還原成第一次調音量之前的原檔
+function restoreFile(dir, backupDir, key, i) {
+  const base = voice.fileBase(key, i);
+  const ext = voice.EXTS.find((e) => fs.existsSync(path.join(backupDir, `${base}.${e}`)));
+  if (!ext) throw new Error('這句沒有調過音量');
+  for (const e of voice.EXTS) fs.rmSync(path.join(dir, `${base}.${e}`), { force: true });
+  fs.copyFileSync(path.join(backupDir, `${base}.${ext}`), path.join(dir, `${base}.${ext}`));
+  fs.rmSync(path.join(backupDir, `${base}.${ext}`), { force: true });
+  setGainMark(dir, key, i, 100);
+}
+
+const hasBackup = (backupDir, key, i) => voice.EXTS.some((e) => fs.existsSync(path.join(backupDir, `${voice.fileBase(key, i)}.${e}`)));
+
+// 套用／還原音量後：清掉播放時放大的 vol，記下音檔現在是原檔的幾 %（gain；100 就不記），控制面板滑桿停在這裡（祐 2026-11-14）
+function setGainMark(dir, key, i, pct) {
+  const f = path.join(dir, 'lines.json');
+  const lines = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const l = Array.isArray(lines[key]) && lines[key][i];
+  if (!l) return;
+  delete l.vol;
+  if (pct && pct !== 100) l.gain = pct; else delete l.gain;
+  fs.writeFileSync(f, formatLines(lines));
+}
+
+module.exports = { DEFAULTS, MAX_LINES, spokenText, synth, parseWav, wavDurationMs, padWavSilence, hasFfmpeg, saveAudio, formatLines, adopt, setFileGain, restoreFile, hasBackup };
