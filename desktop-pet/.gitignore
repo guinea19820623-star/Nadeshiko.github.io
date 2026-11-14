@@ -6,3 +6,6 @@ app/music/**/*.ogg
 app/music/**/*.m4a
 app/music/**/*.flac
 app/music/**/*.aac
+
+# 撫子的專案記憶入口（私人，不進 git）
+CLAUDE.md
